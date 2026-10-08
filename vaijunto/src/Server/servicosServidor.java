@@ -9,6 +9,7 @@ import vaijunto.src.model.*;
 
 public class servicosServidor {
     private static Map<String, cliente> registros = new HashMap<String, cliente>();
+    private static Map<String, cidade> cidades = new HashMap<String, cidade>();
     private static Map<String, corrida> corridas = new HashMap<String, corrida>();
     private static Map<String, List<String>> temp = new HashMap<>(); // Lista temporária para armazenar corridas combinadas durante a busca de corridas
 
@@ -268,7 +269,13 @@ public class servicosServidor {
             else if (corrida1.equals(corridas[2]) && corrida2.equals(corridas[1])) return true;
         }
         return false;
-    }    
+    }
+
+    public static void atualizarVizinhanca(List<String> trechos) {
+        for (String trecho : trechos) {
+            if (cidades.get(trecho) == null) cidades.add(new cidade(trecho));
+        }
+    }
 
 
     /* Ferramenta de busca de corridas. Busca combinações de origem-destino, parada-destino, origem-parada, parada-parada 
