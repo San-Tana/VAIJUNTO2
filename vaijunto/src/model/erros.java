@@ -16,4 +16,14 @@ public class erros {
     public static final String CORRIDA_MOTORISTA = "CLIENTE EH O MOTORISTA";
     public static final String CORRIDA_NAO_RESERVADA = "CLIENTE NAO RESERVOU A CORRIDA";
     public static final String HISTORICO_VAZIO = "HISTORICO VAZIO";
+    public static final String MENSAGEM_INVALIDA = "MENSAGEM COM FORMATO INVÁLIDO";
+    public static final String BUSCA_INVALIDA = "BUSCA_INVALIDA";
+    public static final String SERVIDOR_INDISPONIVEL = "SERVIDOR_INDISPONIVEL";
+    public static final String TEMPO_ESGOTADO = "TEMPO_ESGOTADO";
+    public static final String RESPOSTA_INVALIDA = "RESPOSTA_INVALIDA";
+    public static final String METODO_INVALIDO = "METODO_INVALIDO";
+    public static final String IDS_OBRIGATORIOS = "IDS_OBRIGATORIOS";
+    public static final String LIMITE_DE_IDS = "LIMITE_DE_IDS";
+    public static final String BUSCA_INTERROMPIDA = "BUSCA_INTERROMPIDA";
+    public static final String RESERVA_REMOTA_INDISPONIVEL = "RESERVA_REMOTA_INDISPONIVEL";
 }

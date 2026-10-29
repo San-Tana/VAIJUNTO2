@@ -11,8 +11,17 @@ public class servicosServidor {
     private static Map<String, cliente> registros = new HashMap<String, cliente>();
     private static Map<String, cidade> cidades = new HashMap<String, cidade>();
     private static Map<String, corrida> corridas = new HashMap<String, corrida>();
+    private static int IDcounter = 1;
     private static Map<String, List<String>> temp = new HashMap<>(); // Lista temporária para armazenar corridas combinadas durante a busca de corridas
 
+    public synchronized static java.util.List<corrida> listarCorridasLocais() {
+    return new java.util.ArrayList<>(corridas.values());
+    }
+
+    public synchronized static corrida obterCorridaLocal(String id) {
+        return corridas.get(id);
+    }
+    
     // Faz o login do cliente, verificando se o usuário não está logado, se a senha está correta e se o usuário existe no sistema
     // login[0] = usuario
     // login[1] = senha
@@ -92,7 +101,7 @@ public class servicosServidor {
         int bancos = Integer.parseInt(corrida[3]);
         int preco = Integer.parseInt(corrida[4]);
 
-        String ID = String.format("CAR%03d", corridas.size() + 1);
+        String ID = String.format("CAR%03d", IDcounter++);
 
         if (corrida.length == 6) {
             List<String> paradas = Arrays.asList(corrida[5].split("\\&"));
@@ -271,6 +280,7 @@ public class servicosServidor {
         return false;
     }
 
+    // ATENÇÃO
     public static void atualizarVizinhanca(List<String> trechos) {
         for (String trecho : trechos) {
             if (cidades.get(trecho) == null) cidades.add(new cidade(trecho));
