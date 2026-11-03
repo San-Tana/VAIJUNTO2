@@ -11,4 +11,8 @@ public class okays {
     public static final String CORRIDA_RESERVADA = "CORRIDA RESERVADA";
     public static final String HISTORICO_ENCONTRADO = "HISTORICO ENCONTRADO";
     public static final String CORRIDA_CANCELADA = "CORRIDA CANCELADA";
+    public static final String EMPRESA_CONFIGURADA = "EMPRESA_CONFIGURADA";
+    public static final String RESERVA_PREPARADA = "RESERVA_PENDENTE_PREPARADA";
+    public static final String RESERVA_CONFIRMADA = "RESERVA_PENDENTE_CONFIRMADA";
+    public static final String RESERVA_ABORTADA = "RESERVA_PENDENTE_ABORTADA";
 }

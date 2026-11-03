@@ -26,4 +26,19 @@ public class erros {
     public static final String LIMITE_DE_IDS = "LIMITE_DE_IDS";
     public static final String BUSCA_INTERROMPIDA = "BUSCA_INTERROMPIDA";
     public static final String RESERVA_REMOTA_INDISPONIVEL = "RESERVA_REMOTA_INDISPONIVEL";
+    public static final String PASSAGEIRO_INVALIDO = "PASSAGEIRO_INVALIDO";
+    public static final String FALHA_NA_RESERVA = "FALHA_NA_RESERVA";
+    public static final String PERCURSO_INVALIDO = "PERCURSO_INVALIDO";
+    public static final String FALHA_AO_SALVAR = "FALHA_AO_SALVAR_DADOS";
+    public static final String FALHA_AO_CARREGAR = "FALHA_AO_CARREGAR_DADOS";
+    public static final String FALHA_INTERNA = "FALHA_INTERNA";
+    public static final String ETAPA_INVALIDA = "ETAPA_INVALIDA";
+    public static final String ETAPA_DUPLICADA = "ETAPA_DUPLICADA";
+    public static final String RESERVA_PARCIAL = "FALHA_NA_RESERVA_COMPOSTA";
+    public static final String RESERVA_NAO_PREPARADA = "RESERVA_NAO_PREPARADA";
+    public static final String FALHA_AO_CONFIRMAR = "RESERVA_PENDENTE_NÃO_CONFIRMADA";
+    public static final String FALHA_AO_ABORTAR = "RESERVA_PENDENTE_NÃO_ABORTADA";
+    public static final String HISTORICO_NAO_SALVO = "FALHA_AO_SALVAR_HISTORICO";
+    public static final String TRANSACAO_PENDENTE = "TRANSACAO_PENDENTE";
+
 }

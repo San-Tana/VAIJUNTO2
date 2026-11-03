@@ -1,0 +1,374 @@
+{
+  "registros": {
+    "Guntai": {
+      "logado": false,
+      "empresa": "EMP_A",
+      "usuario": "Guntai",
+      "senha": "9988",
+      "veiculo": {
+        "CNH": "009067",
+        "tipo": "moto",
+        "modelo": "honda",
+        "placa": "98a9e"
+      },
+      "corridas": [
+        "CAR001",
+        "CAR002"
+      ]
+    },
+    "Gun": {
+      "logado": false,
+      "empresa": "EMP_A",
+      "usuario": "Gun",
+      "senha": "7878",
+      "veiculo": null,
+      "corridas": [
+        "CAR002"
+      ]
+    },
+    "passageiro7ccfd0": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passageiro7ccfd0",
+      "senha": "senha123",
+      "veiculo": null,
+      "corridas": [
+        "EMP_A:CAR011",
+        "EMP_B:CAR002"
+      ]
+    },
+    "motoristaA809ac2": {
+      "logado": false,
+      "empresa": "EMP_A",
+      "usuario": "motoristaA809ac2",
+      "senha": "senha123",
+      "veiculo": {
+        "CNH": "12345678901",
+        "tipo": "carro",
+        "modelo": "Sedan",
+        "placa": "ABC1234"
+      },
+      "corridas": [
+        "CAR011"
+      ]
+    },
+    "motoristaA7ccfd0": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "motoristaA7ccfd0",
+      "senha": "senha123",
+      "veiculo": {
+        "CNH": "12345678901",
+        "tipo": "carro",
+        "modelo": "Sedan",
+        "placa": "ABC1234"
+      },
+      "corridas": [
+        "CAR012"
+      ]
+    },
+    "motoristaA122968": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "motoristaA122968",
+      "senha": "senha123",
+      "veiculo": {
+        "CNH": "12345678901",
+        "tipo": "carro",
+        "modelo": "Sedan",
+        "placa": "ABC1234"
+      },
+      "corridas": [
+        "CAR013"
+      ]
+    },
+    "passageiro122968": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passageiro122968",
+      "senha": "senha123",
+      "veiculo": null,
+      "corridas": [
+        "EMP_A:CAR011",
+        "EMP_B:CAR002"
+      ]
+    },
+    "passageiro809ac2": {
+      "logado": false,
+      "empresa": "EMP_A",
+      "usuario": "passageiro809ac2",
+      "senha": "senha123",
+      "veiculo": null,
+      "corridas": [
+        "EMP_A:CAR011",
+        "EMP_B:CAR001"
+      ]
+    }
+  },
+  "corridas": {
+    "CAR002": {
+      "finalizada": false,
+      "ID": "CAR002",
+      "motorista": "Guntai",
+      "origem": "Serrinha",
+      "destino": "Salvador",
+      "horario": {
+        "dia": 21,
+        "mes": 1,
+        "ano": 2027,
+        "horario": "10:00"
+      },
+      "bancos": 3,
+      "preco": 10,
+      "paradas": [
+        "Serrinha",
+        "Salvador"
+      ],
+      "vagasPorTrecho": [
+        2
+      ],
+      "caronas": {
+        "EMP_A:Gun": [
+          1
+        ]
+      },
+      "reservasPendentes": null
+    },
+    "CAR013": {
+      "finalizada": false,
+      "ID": "CAR013",
+      "motorista": "motoristaA122968",
+      "origem": "CidadeTesteA",
+      "destino": "CidadeTesteB",
+      "horario": {
+        "dia": 3,
+        "mes": 12,
+        "ano": 2026,
+        "horario": "08:00"
+      },
+      "bancos": 3,
+      "preco": 30,
+      "paradas": [
+        "CidadeTesteA",
+        "CidadeTesteB"
+      ],
+      "vagasPorTrecho": [
+        3
+      ],
+      "caronas": {},
+      "reservasPendentes": {}
+    },
+    "CAR011": {
+      "finalizada": false,
+      "ID": "CAR011",
+      "motorista": "motoristaA809ac2",
+      "origem": "CidadeTesteA",
+      "destino": "CidadeTesteB",
+      "horario": {
+        "dia": 3,
+        "mes": 12,
+        "ano": 2026,
+        "horario": "08:00"
+      },
+      "bancos": 3,
+      "preco": 30,
+      "paradas": [
+        "CidadeTesteA",
+        "CidadeTesteB"
+      ],
+      "vagasPorTrecho": [
+        0
+      ],
+      "caronas": {
+        "EMP_A:passageiro809ac2": [
+          1
+        ],
+        "EMP_A:passageiro7ccfd0": [
+          1
+        ],
+        "EMP_A:passageiro122968": [
+          1
+        ]
+      },
+      "reservasPendentes": {
+        "dbeefa45-aedf-4f65-83c2-414f8318e45d": {
+          "idPassageiro": "EMP_A:passageiro809ac2",
+          "origem": "CidadeTesteA",
+          "destino": "CidadeTesteB",
+          "vetor": [
+            1
+          ],
+          "estado": "CONFIRMADA"
+        },
+        "30e2c53d-1b6c-4875-bf61-8c67656a0beb": {
+          "idPassageiro": "EMP_A:passageiro7ccfd0",
+          "origem": "CidadeTesteA",
+          "destino": "CidadeTesteB",
+          "vetor": [
+            1
+          ],
+          "estado": "CONFIRMADA"
+        },
+        "3bee28fb-2555-4563-a4e6-345b8b47e40d": {
+          "idPassageiro": "EMP_A:passageiro122968",
+          "origem": "CidadeTesteA",
+          "destino": "CidadeTesteB",
+          "vetor": [
+            1
+          ],
+          "estado": "CONFIRMADA"
+        }
+      }
+    },
+    "CAR001": {
+      "finalizada": false,
+      "ID": "CAR001",
+      "motorista": "Guntai",
+      "origem": "Feira de Santana",
+      "destino": "Salvador",
+      "horario": {
+        "dia": 20,
+        "mes": 12,
+        "ano": 2026,
+        "horario": "09:30"
+      },
+      "bancos": 2,
+      "preco": 20,
+      "paradas": [
+        "Feira de Santana",
+        "Salvador"
+      ],
+      "vagasPorTrecho": [
+        2
+      ],
+      "caronas": {},
+      "reservasPendentes": null
+    },
+    "CAR012": {
+      "finalizada": false,
+      "ID": "CAR012",
+      "motorista": "motoristaA7ccfd0",
+      "origem": "CidadeTesteA",
+      "destino": "CidadeTesteB",
+      "horario": {
+        "dia": 3,
+        "mes": 12,
+        "ano": 2026,
+        "horario": "08:00"
+      },
+      "bancos": 3,
+      "preco": 30,
+      "paradas": [
+        "CidadeTesteA",
+        "CidadeTesteB"
+      ],
+      "vagasPorTrecho": [
+        3
+      ],
+      "caronas": {},
+      "reservasPendentes": {}
+    }
+  },
+  "reservasCompostas": {
+    "COMbcbbfb83": {
+      "idComposta": "COMbcbbfb83",
+      "transacaoId": "30e2c53d-1b6c-4875-bf61-8c67656a0beb",
+      "passageiro": "EMP_A:passageiro7ccfd0",
+      "etapas": [
+        {
+          "detalhes": {
+            "empresa": "EMP_A",
+            "id": "EMP_A:CAR011",
+            "disponivel": true,
+            "preco": 30,
+            "horario": "3\u002612\u00262026\u002608:00",
+            "motorista": "motoristaA809ac2",
+            "vagas": 2
+          },
+          "origem": "CidadeTesteA",
+          "destino": "CidadeTesteB"
+        },
+        {
+          "detalhes": {
+            "empresa": "EMP_B",
+            "id": "EMP_B:CAR002",
+            "disponivel": true,
+            "preco": 40,
+            "horario": "3\u002612\u00262026\u002609:00",
+            "motorista": "motoristaB7ccfd0",
+            "vagas": 3
+          },
+          "origem": "CidadeTesteB",
+          "destino": "CidadeTesteC"
+        }
+      ]
+    },
+    "COMda01e648": {
+      "idComposta": "COMda01e648",
+      "transacaoId": "dbeefa45-aedf-4f65-83c2-414f8318e45d",
+      "passageiro": "EMP_A:passageiro809ac2",
+      "etapas": [
+        {
+          "detalhes": {
+            "empresa": "EMP_A",
+            "id": "EMP_A:CAR011",
+            "disponivel": true,
+            "preco": 30,
+            "horario": "3\u002612\u00262026\u002608:00",
+            "motorista": "motoristaA809ac2",
+            "vagas": 3
+          },
+          "origem": "CidadeTesteA",
+          "destino": "CidadeTesteB"
+        },
+        {
+          "detalhes": {
+            "empresa": "EMP_B",
+            "id": "EMP_B:CAR001",
+            "disponivel": true,
+            "preco": 40,
+            "horario": "3\u002612\u00262026\u002609:00",
+            "motorista": "motoristaB809ac2",
+            "vagas": 3
+          },
+          "origem": "CidadeTesteB",
+          "destino": "CidadeTesteC"
+        }
+      ]
+    },
+    "COM7fea1135": {
+      "idComposta": "COM7fea1135",
+      "transacaoId": "3bee28fb-2555-4563-a4e6-345b8b47e40d",
+      "passageiro": "EMP_A:passageiro122968",
+      "etapas": [
+        {
+          "detalhes": {
+            "empresa": "EMP_A",
+            "id": "EMP_A:CAR011",
+            "disponivel": true,
+            "preco": 30,
+            "horario": "3\u002612\u00262026\u002608:00",
+            "motorista": "motoristaA809ac2",
+            "vagas": 1
+          },
+          "origem": "CidadeTesteA",
+          "destino": "CidadeTesteB"
+        },
+        {
+          "detalhes": {
+            "empresa": "EMP_B",
+            "id": "EMP_B:CAR002",
+            "disponivel": true,
+            "preco": 40,
+            "horario": "3\u002612\u00262026\u002609:00",
+            "motorista": "motoristaB7ccfd0",
+            "vagas": 2
+          },
+          "origem": "CidadeTesteB",
+          "destino": "CidadeTesteC"
+        }
+      ]
+    }
+  },
+  "IDcounter": 14
+}

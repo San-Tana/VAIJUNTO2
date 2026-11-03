@@ -78,6 +78,8 @@ public class servicosClient {
     }
 
     public static String novaViajem(Scanner scan) {
+        String paradas = "";
+
         System.out.print("\nInforme a cidade de origem: ");
         String origem = scan.nextLine().trim();
 
@@ -97,9 +99,8 @@ public class servicosClient {
         System.out.print("\nDeseja adicionar paradas? [S/N]");
         String parada = scan.nextLine().trim();
         if (parada.matches("(?i)^(sim|s)$")) {
-            String paradas = adicionarParadas(scan);
+            paradas = adicionarParadas(scan);
             if (paradas.startsWith("ERRO")) return paradas;
-            return origem + ";" + destino + ";" + horario + ";" + assentos + ";" + preco + ";" + paradas;
         }
         else if (!parada.matches("(?i)^(nao|não|n)$"))
             return "ERRO|" + erros.ENTRADA_INVALIDA;
@@ -107,7 +108,12 @@ public class servicosClient {
         if (Stream.of(origem, destino, assentos).anyMatch(campo -> campo == null || campo.trim().isEmpty()))
             return "ERRO|" + erros.CAMPO_VAZIO;
 
-        return origem + ";" + destino + ";" + horario + ";" + assentos + ";" + preco;
+        if (paradas.isEmpty()) {
+            paradas = origem + "&" + destino;
+        } else {
+            paradas = origem + "&" + paradas + "&" + destino;
+        }
+        return origem + ";" + destino + ";" + horario + ";" + assentos + ";" + preco + ";" + paradas;
     }
 
     public static String definirHorario(Scanner scan) {
@@ -125,7 +131,8 @@ public class servicosClient {
 
         if (Stream.of(dia, mes, ano, horario).anyMatch(campo -> campo == null || campo.trim().isEmpty()))
             return "ERRO|" + erros.CAMPO_VAZIO;
-        else if (!Stream.of(dia, mes, ano, horario).allMatch(campo -> campo.matches("[0-9]+")))
+        else if (!Stream.of(dia, mes, ano).allMatch(campo -> campo.matches("[0-9]+")) 
+            || !horario.matches("[0-9]{2}:[0-9]{2}"))
             return "ERRO|" + erros.ENTRADA_INVALIDA;
 
         return dia + "&" + mes + "&" + ano + "&" + horario;
@@ -134,26 +141,115 @@ public class servicosClient {
     public static String adicionarParadas(Scanner scan) {
         int sair = 0;
         String paradas = "";
+
         while (sair != 1) {
             System.out.print("\nInforme o nome da cidade: ");
-            paradas += scan.nextLine().trim() + "&";
+            String cidade = scan.nextLine().trim();
+
+            if (cidade.isEmpty())
+                return "ERRO|" + erros.ENTRADA_INVALIDA;
+
+            paradas += cidade;
 
             System.out.print("\nDeseja adicionar outra parada? [S/N]: ");
             String resposta = scan.nextLine().trim();
-            if (resposta.matches("(?i)^(nao|não|n)$")) 
+
+            if (resposta.matches("(?i)^(nao|não|n)$"))
                 sair = 1;
-            else if (resposta.matches("(?i)^(sim|s)$"))
+            else if (resposta.matches("(?i)^(sim|s)$")) {
+                paradas += "&";
                 continue;
-            else 
+            }
+            else
                 return "ERRO|" + erros.ENTRADA_INVALIDA;
         }
 
         return paradas;
     }
 
-    // exibir todas as corridas em que o usuário está registrado/exibir corridas que o usuário pode participar
-    public static void exibirHistorico(List<String> historico) {
-        for (String corrida : historico) System.out.println(corrida.replace("\\n", "\n"));
+    public static void exibirCorridas(List<String> corridas) {
+        int contador = 1;
+
+        for (String corrida : corridas) {
+
+            // Identifica o tipo antes de interpretar os campos.
+            String tipo = corrida.startsWith("COMPOSTA;")
+                    ? "COMPOSTA" : "DIRETA";
+
+            // A corrida composta possui etapas com seus próprios ';'.
+            String[] dados = tipo.equals("COMPOSTA")
+                    ? corrida.split(";", 6)
+                    : corrida.split(";", -1);
+
+            System.out.println("\n========== OPÇÃO " + contador + " ==========");
+
+            if (tipo.equals("DIRETA")) {
+
+                if (dados.length != 8) {
+                    System.out.println("Dados da corrida inválidos.");
+                    continue;
+                }
+
+                String dia = formatarHorario(dados[5]);
+
+                System.out.println("Tipo: Corrida direta");
+                System.out.println("ID: " + dados[1]);
+                System.out.println("Origem: " + dados[2]);
+                System.out.println("Destino: " + dados[3]);
+                System.out.println("Preço: R$ " + dados[4]);
+                System.out.println("Horário: " + dia);
+                System.out.println("Motorista: " + dados[6]);
+                System.out.println("Vagas disponíveis: " + dados[7]);
+
+            } else {
+
+                if (dados.length != 6) {
+                    System.out.println("Dados da corrida composta inválidos.");
+                    continue;
+                }
+
+                System.out.println("Tipo: Corrida composta");
+                System.out.println("ID: " + dados[1]);
+                System.out.println("Origem: " + dados[2]);
+                System.out.println("Destino: " + dados[3]);
+                System.out.println("Preço total: R$ " + dados[4]);
+
+                String[] etapas = dados[5].split("#", -1);
+
+                for (int i = 0; i < etapas.length; i++) {
+                    String[] etapa = etapas[i].split(";", -1);
+
+                    if (etapa.length != 7) {
+                        System.out.println("Dados da etapa inválidos.");
+                        continue;
+                    }
+
+                    String dia = formatarHorario(etapa[4]);
+
+                    System.out.println("\n  Etapa " + (i + 1));
+                    System.out.println("  ID: " + etapa[0]);
+                    System.out.println("  Origem: " + etapa[1]);
+                    System.out.println("  Destino: " + etapa[2]);
+                    System.out.println("  Preço: R$ " + etapa[3]);
+                    System.out.println("  Horário: " + dia);
+                    System.out.println("  Motorista: " + etapa[5]);
+                    System.out.println("  Vagas disponíveis: " + etapa[6]);
+                }
+            }
+
+            contador++;
+        }
+    }
+
+    // Transforma o horario do formato que é armazenado para o formato de apresentação
+    public static String formatarHorario(String horarioCompleto) {
+        String[] horario = horarioCompleto.split("&");
+
+        if (horario.length != 4)
+            return horarioCompleto;
+
+        return horario[0] + "/" + horario[1] + "/" + horario[2]
+                + ", às " + horario[3];
     }
 
     public static void mensagensOkays(String mensagem) {
@@ -173,6 +269,16 @@ public class servicosClient {
             System.out.println("Corrida reservada com sucesso!");
         else if (mensagem.equals(okays.CORRIDA_CANCELADA))
             System.out.println("Corrida cancelada com sucesso!");
+        else if (mensagem.equals(okays.HISTORICO_ENCONTRADO))
+            System.out.println("Histórico encontrado.");
+        else if (mensagem.equals(okays.EMPRESA_CONFIGURADA))
+            System.out.println("Empresa configurada com sucesso.");
+        else if (mensagem.equals(okays.RESERVA_PREPARADA))
+            System.out.println("Reserva preparada com sucesso.");
+        else if (mensagem.equals(okays.RESERVA_CONFIRMADA))
+            System.out.println("Reserva confirmada com sucesso.");
+        else if (mensagem.equals(okays.RESERVA_ABORTADA))
+            System.out.println("Reserva abortada com sucesso.");
     }
 
     public static void mensagensErros(String mensagem) {
@@ -206,5 +312,55 @@ public class servicosClient {
             System.out.println("Você não reservou essa corrida.");
         else if (mensagem.equals(erros.HISTORICO_VAZIO))
             System.out.println("Você não possui corridas no histórico.");     
+        else if(mensagem.equals(erros.HISTORICO_NAO_SALVO)) 
+            System.out.println("Reserva realizada com sucesso, mas persistência do histôrico falhou");
+        else if (mensagem.equals(erros.MENSAGEM_INVALIDA))
+            System.out.println("Mensagem recebida em formato inválido.");
+        else if (mensagem.equals(erros.BUSCA_INVALIDA))
+            System.out.println("Parâmetros da busca inválidos.");
+        else if (mensagem.equals(erros.SERVIDOR_INDISPONIVEL))
+            System.out.println("Servidor indisponível no momento.");
+        else if (mensagem.equals(erros.TEMPO_ESGOTADO))
+            System.out.println("Tempo limite da operação esgotado.");
+        else if (mensagem.equals(erros.RESPOSTA_INVALIDA))
+            System.out.println("Resposta recebida em formato inválido.");
+        else if (mensagem.equals(erros.METODO_INVALIDO))
+            System.out.println("Método de comunicação inválido.");
+        else if (mensagem.equals(erros.IDS_OBRIGATORIOS))
+            System.out.println("É necessário informar os IDs das corridas.");
+        else if (mensagem.equals(erros.LIMITE_DE_IDS))
+            System.out.println("Quantidade de IDs acima do limite permitido.");
+        else if (mensagem.equals(erros.BUSCA_INTERROMPIDA))
+            System.out.println("A busca foi interrompida.");
+        else if (mensagem.equals(erros.RESERVA_REMOTA_INDISPONIVEL))
+            System.out.println("Não foi possível acessar o servidor responsável pela reserva.");
+        else if (mensagem.equals(erros.PASSAGEIRO_INVALIDO))
+            System.out.println("Passageiro inválido.");
+        else if (mensagem.equals(erros.FALHA_NA_RESERVA))
+            System.out.println("Não foi possível realizar a reserva.");
+        else if (mensagem.equals(erros.PERCURSO_INVALIDO))
+            System.out.println("Percurso informado inválido.");
+        else if (mensagem.equals(erros.FALHA_AO_SALVAR))
+            System.out.println("Falha ao salvar os dados.");
+        else if (mensagem.equals(erros.FALHA_AO_CARREGAR))
+            System.out.println("Falha ao carregar os dados.");
+        else if (mensagem.equals(erros.FALHA_INTERNA))
+            System.out.println("Ocorreu um erro interno no servidor.");
+        else if (mensagem.equals(erros.ETAPA_INVALIDA))
+            System.out.println("Uma das etapas da viagem é inválida.");
+        else if (mensagem.equals(erros.ETAPA_DUPLICADA))
+            System.out.println("A viagem contém etapas duplicadas.");
+        else if (mensagem.equals(erros.RESERVA_PARCIAL))
+            System.out.println("Não foi possível concluir todas as etapas da reserva.");
+        else if (mensagem.equals(erros.RESERVA_NAO_PREPARADA))
+            System.out.println("A reserva não foi preparada anteriormente.");
+        else if (mensagem.equals(erros.FALHA_AO_CONFIRMAR))
+            System.out.println("Não foi possível confirmar a reserva.");
+        else if (mensagem.equals(erros.FALHA_AO_ABORTAR))
+            System.out.println("Não foi possível abortar a reserva.");
+        else if (mensagem.equals(erros.HISTORICO_NAO_SALVO))
+            System.out.println("Reserva realizada com sucesso, mas houve falha ao salvar o histórico.");
+        else if (mensagem.equals(erros.TRANSACAO_PENDENTE))
+            System.out.println("A transação ainda está pendente de confirmação.");
     }
 }

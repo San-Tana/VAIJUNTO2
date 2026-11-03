@@ -6,7 +6,6 @@ import java.util.Scanner;
 import java.util.Arrays;
 import java.util.List;
 
-import vaijunto.src.model.erros;
 import vaijunto.src.model.okays;
 
 public class Aplicacao {
@@ -19,7 +18,7 @@ public class Aplicacao {
         String opcao, resposta;
 
         while (sair != 1) {
-            if (logado == false) {
+            if (!logado) {
                 System.out.print("""
                 ------------VAIJUNTO------------
                 1. Fazer login
@@ -63,9 +62,17 @@ public class Aplicacao {
                     }
                     resposta = requisicao("BUSCAR|" + Usuario + "|" + viajem);
                     if (resposta.equals("OK")) {
-                        System.out.print("\nDigite o ID da corrida que deseja se juntar: ");
+                        System.out.print("\nDigite o ID da corrida que deseja reservar: ");
                         opcao = scan.nextLine().trim();
-                        resposta = requisicao("RESERVAR|" + Usuario + "|" + opcao);
+
+                        System.out.println("Dados enviados para reserva: " + opcao + ";" + viajem);
+
+                        if (opcao.startsWith("COM")) {
+                            resposta = requisicao("RESERVAR_COMPOSTA|" + Usuario + "|" + opcao);
+                        }
+                        else {
+                            resposta = requisicao("RESERVAR|" + Usuario + "|" + opcao + ";" + viajem);
+                        }
                     }
                 }
                 else if (opcao.equals("2")) {
@@ -120,15 +127,27 @@ public class Aplicacao {
                 System.out.println("Servidor fechou a conexão sem enviar resposta.");
                 return "ERRO";
             }
-            String resposta[] = linha.split("\\|");
+
+            String resposta[] = linha.split("\\|", 3);
             if (resposta[0].equals("OK")) {
                 if (resposta[1].equals(okays.USUARIO_LOGADO) || resposta[1].equals(okays.USUARIO_REGISTRADO)) {
                     Usuario = resposta[2];
                     logado = true;
                 }
-                else if (resposta[1].equals(okays.HISTORICO_ENCONTRADO) || resposta[1].equals(okays.CORRIDA_ENCONTRADA)) {
-                    List<String> corridas = Arrays.asList(resposta[2].split(";"));
-                    servicosClient.exibirHistorico(corridas);
+                else if (resposta[1].startsWith("HISTORICO_")) {
+                    if (resposta.length >= 3 && !resposta[2].isEmpty()) {
+                        List<String> corridas = Arrays.asList(resposta[2].split("~", -1));
+
+                        if (resposta[1].equals("HISTORICO_PARCIAL")) {
+                            System.out.println("\nAviso: histórico parcial. Alguns servidores não responderam.");
+                        }
+
+                        servicosClient.exibirCorridas(corridas);
+                    }
+                }
+                else if (resposta[1].equals(okays.CORRIDA_ENCONTRADA)) {
+                    List<String> corridas = Arrays.asList(resposta[2].split("~"));
+                    servicosClient.exibirCorridas(corridas);
                 }
                 servicosClient.mensagensOkays(resposta[1]);
 

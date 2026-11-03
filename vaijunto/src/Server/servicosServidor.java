@@ -8,14 +8,78 @@ import java.util.HashMap;
 import vaijunto.src.model.*;
 
 public class servicosServidor {
-    private static Map<String, cliente> registros = new HashMap<String, cliente>();
-    private static Map<String, cidade> cidades = new HashMap<String, cidade>();
-    private static Map<String, corrida> corridas = new HashMap<String, corrida>();
-    private static int IDcounter = 1;
-    private static Map<String, List<String>> temp = new HashMap<>(); // Lista temporária para armazenar corridas combinadas durante a busca de corridas
+    private static String empresa;
 
+    private static Map<String, cliente> registros = new HashMap<String, cliente>();
+    private static Map<String, corrida> corridas = new HashMap<String, corrida>();
+    private static Map<String, Consorcio.ReservaComposta> reservasCompostas = new HashMap<>();
+    private static int IDcounter = 1;
+
+    // registra o nome da empresa responsavel pela instância para identificação
+    public static synchronized String configurarEmpresa(String nomeEmpresa) {
+        if (nomeEmpresa == null || nomeEmpresa.isBlank()
+                || nomeEmpresa.contains(":")) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
+        empresa = nomeEmpresa;
+
+        try {
+            PersistenciaJson.Snapshot snapshot = PersistenciaJson.carregar(empresa);
+
+            if (snapshot != null) {
+                // Recupera os dados salvos anteriormente.
+                registros = snapshot.registros;
+                corridas = snapshot.corridas;
+                IDcounter = snapshot.IDcounter;
+
+                System.out.println("Dados recuperados da empresa: " + empresa);
+                System.out.println("Clientes carregados: " + registros.size());
+                System.out.println("Corridas carregadas: " + corridas.size());
+            } else {
+                // Primeira inicialização dessa empresa.
+                registros = new HashMap<>();
+                corridas = new HashMap<>();
+                IDcounter = 1;
+
+                System.out.println("Nenhum arquivo anterior encontrado para " + empresa);
+            }
+
+            return "OK|" + okays.EMPRESA_CONFIGURADA;
+
+        } catch (java.io.IOException e) {
+            System.err.println("Falha ao carregar dados: " + e.getMessage());
+            return "ERRO|" + erros.FALHA_AO_CARREGAR;
+        }
+    }
+
+    public static boolean salvarDados() {
+        try {
+            PersistenciaJson.salvar(
+                    empresa,
+                    registros,
+                    corridas,
+                    reservasCompostas,
+                    IDcounter);
+
+            return true;
+
+        } catch (java.io.IOException e) {
+            System.err.println(
+                    "Falha ao salvar dados da empresa " + empresa
+                    + ": " + e.getMessage());
+
+            return false;
+        }
+    }
+
+    public synchronized static void configurarReservasCompostas(
+        Map<String, Consorcio.ReservaComposta> reservas) {
+        reservasCompostas = reservas;
+    }
+    
     public synchronized static java.util.List<corrida> listarCorridasLocais() {
-    return new java.util.ArrayList<>(corridas.values());
+        return new java.util.ArrayList<>(corridas.values());
     }
 
     public synchronized static corrida obterCorridaLocal(String id) {
@@ -45,27 +109,48 @@ public class servicosServidor {
     public synchronized static String registro(String dados) {
         String registro[] = dados.split("\\;");
 
-        // Dois usuários escolhem o mesmo nome ao registrar ao mesmo tempo, apenas um pode ter o nome
+        if (registro.length < 2 || registro.length > 3
+                || registro[0].isBlank() || registro[1].isBlank()) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
+        if (empresa == null) {
+            return "ERRO|" + erros.MENSAGEM_INVALIDA;
+        }
+
+        // Verifica se o usuário já existe.
         String checagem = existeUsuario(registro[0]);
         if (checagem.startsWith("ERRO")) return checagem;
 
-        // Cliente tem ou não veiculo
+        cliente novo;
+
         if (registro.length == 3) {
-            // motorista[0] = CNH
-            // motorista[1] = tipo
-            // motorista[2] = modelo
-            // motorista[3] = placa
             String motorista[] = registro[2].split("\\&");
-            motorista veiculo = new motorista(motorista[0], motorista[1], motorista[2], motorista[3]);
-            cliente novo = new cliente(registro[0], registro[1], veiculo);
-            registros.put(novo.getUsuario(), novo);
-        }
-        else { 
-            cliente novo = new cliente(registro[0], registro[1]); 
-            registros.put(novo.getUsuario(), novo);
+
+            if (motorista.length != 4) {
+                return "ERRO|" + erros.ENTRADA_INVALIDA;
+            }
+
+            motorista veiculo = new motorista(
+                    motorista[0], motorista[1],
+                    motorista[2], motorista[3]
+            );
+
+            novo = new cliente(registro[0], registro[1], empresa, veiculo);
+        } else {
+            novo = new cliente(registro[0], registro[1], empresa);
         }
 
-        System.out.println("Cliente registrado: " + registros.get(registro[0]));
+        registros.put(novo.getUsuario(), novo);
+
+        // Se não conseguir salvar, desfaz o cadastro.
+        if (!salvarDados()) {
+            registros.remove(novo.getUsuario());
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        System.out.println("Cliente registrado: " + novo);
+
         return "OK|" + okays.USUARIO_REGISTRADO + "|" + registro[0];
     }
 
@@ -87,6 +172,36 @@ public class servicosServidor {
         return "ERRO|" + erros.USUARIO_PASSAGEIRO;
     }
 
+    // Verifica a disponibilidade de uma corrida
+    public synchronized static boolean corridaDisponivel(String id, String origem, String destino) {
+        corrida c = corridas.get(id);
+
+        if (c == null || c.getFinalizada()) {
+            return false;
+        }
+
+        return c.temVagas(origem, destino);
+    }   
+
+    // Devolve uma corrida a ser consultada 
+    public synchronized static corrida obterCorridaDisponivel(String id, String origem, String destino) {
+        corrida c = corridas.get(id);
+
+        if (c == null || c.getFinalizada()) {
+            return null;
+        }
+
+        try {
+            if (!c.temVagas(origem, destino)) {
+                return null;
+            }
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+
+        return c;
+    }
+
     // Registra uma nova corrida, seja ela com ou sem paradas, e adiciona a corrida no histórico do usuário
     // corrida[0] = origem
     // corrida[1] = destino
@@ -96,542 +211,597 @@ public class servicosServidor {
     // corrida[5] = paradas
     public synchronized static String publicarCorrida(String usuario, String dados) {
         String corrida[] = dados.split("\\;");
+
+        if (corrida.length != 6) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
+        if (!registros.containsKey(usuario)) {
+            return "ERRO|" + erros.USUARIO_SEM_REGISTRO;
+        }
+
         String data[] = corrida[2].split("\\&");
+
+        if (data.length != 4) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
         data horario = new data(data[0], data[1], data[2], data[3]);
-        int bancos = Integer.parseInt(corrida[3]);
-        int preco = Integer.parseInt(corrida[4]);
 
-        String ID = String.format("CAR%03d", IDcounter++);
+        int bancos;
+        int preco;
 
-        if (corrida.length == 6) {
-            List<String> paradas = Arrays.asList(corrida[5].split("\\&"));
-            corridas.put(ID, new corrida(ID, usuario, corrida[0], corrida[1], horario, bancos, preco, paradas));
-            registros.get(usuario).addCorrida(ID);
-        }
-        else { 
-            corridas.put(ID, new corrida(ID, usuario, corrida[0], corrida[1], horario, bancos, preco));
-            registros.get(usuario).addCorrida(ID);
+        try {
+            bancos = Integer.parseInt(corrida[3]);
+            preco = Integer.parseInt(corrida[4]);
+        } catch (NumberFormatException e) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
         }
 
-        System.out.println("Corrida registrada: " + corridas.get(ID).getID());
+        // Converte a String recebida em uma lista com o percurso completo.
+        List<String> paradas = Arrays.asList(corrida[5].split("\\&"));
+
+        // Confere se o percurso corresponde à origem e ao destino informados.
+        if (paradas.size() < 2
+                || !paradas.get(0).equals(corrida[0])
+                || !paradas.get(paradas.size() - 1).equals(corrida[1])) {
+            return "ERRO|" + erros.PERCURSO_INVALIDO;
+        }
+
+        // O ID só é gerado depois que os dados foram validados.
+        String ID = String.format("CAR%03d", IDcounter);
+
+        corrida nova = new corrida(
+                ID, usuario, corrida[0], corrida[1],
+                horario, bancos, preco, paradas
+        );
+
+        corridas.put(ID, nova);
+        registros.get(usuario).addCorrida(ID);
+        IDcounter++;
+
+        // Se não conseguir salvar, desfaz a publicação.
+        if (!salvarDados()) {
+            corridas.remove(ID);
+            registros.get(usuario).removerCorrida(ID);
+            IDcounter--;
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        System.out.println("Corrida registrada: " + nova.getID());
+
         return "OK|" + okays.CORRIDA_CRIADA;
     }
 
-    // Reserva um assento da corrida para o usuario, um por vez para que um usuário não reserve um assento que não existe
-    public synchronized static String reservarCorrida(String usuario, String ID) {
-        if (ID.startsWith("CAR")) {
-            if (!corridas.containsKey(ID)) return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
-            // Verifica se a corrida está cheia, se já foi finalizada, se o usuário já reservou um assento ou se o usuário é o motorista da corrida
-            if (corridas.get(ID).getBancos() == 0) return "ERRO|" + erros.CORRIDA_CHEIA;
-            else if (corridas.get(ID).getFinalizada()) return "ERRO|" + erros.CORRIDA_FINALIZADA;
-            else if (corridas.get(ID).getCarona().contains(usuario)) return "ERRO|" + erros.CORRIDA_JA_RESERVADA;
-            else if (corridas.get(ID).getmotorista().equals(usuario)) return "ERRO|" + erros.CORRIDA_MOTORISTA;
-            else {
-                corridas.get(ID).addCarona(usuario);
-                registros.get(usuario).addCorrida(ID);
 
-                temp.remove(usuario);
-                return "OK|" + okays.CORRIDA_RESERVADA;
-            }
-        }
+    // Reserva local: recebe o nome de usuário e gera seu ID global.
+    public synchronized static String reservarCorridaLocal(
+            String usuario, String idLocal, String idGlobal, String origem, String destino) {
 
-        else if (ID.startsWith("COM")) {
-            List<String> compostas = temp.get(usuario);
+        String idPassageiro = identificadorGlobal.gerar(empresa, usuario);
 
-            if (compostas == null || compostas.isEmpty()) return "ERRO|" + erros.ID_INVALIDO;
-
-            for (String comp : compostas) {
-                String corrida[] = comp.split(";");
-                if (!ID.equals(corrida[0])) continue;
-
-                // Verifica se uma das corridas encheu durante a tentativa de reserva, se o usuário já reservou uma das corridas, 
-                // se o usuário é o motorista de uma das corridas ou se uma das corridas foi finalizada
-                if (corridas.get(corrida[1]).getBancos() == 0 || corridas.get(corrida[2]).getBancos() == 0) 
-                    return "ERRO|" + erros.CORRIDA_CHEIA;
-                else if (corridas.get(corrida[1]).getCarona().contains(usuario) || corridas.get(corrida[2]).getCarona().contains(usuario)) 
-                    return "ERRO|" + erros.CORRIDA_JA_RESERVADA;
-                else if (corridas.get(corrida[1]).getFinalizada() || corridas.get(corrida[2]).getFinalizada()) 
-                    return "ERRO|" + erros.CORRIDA_FINALIZADA;
-                else if (corridas.get(corrida[1]).getmotorista().equals(usuario) || corridas.get(corrida[2]).getmotorista().equals(usuario)) 
-                    return "ERRO|" + erros.CORRIDA_MOTORISTA;
-
-                // Cria uma corrida composta com as duas corridas
-                else if (ID.equals(corrida[0])) {
-                    corridaComposta corridaDupla = new corridaComposta(ID, corridas.get(corrida[1]), corridas.get(corrida[2]), corrida[3], corrida[4]);
-                    corridas.put(corridaDupla.getID(), corridaDupla);
-                    corridas.get(ID).addCarona(usuario);
-                    corridas.get(corrida[1]).addCarona(usuario);
-                    corridas.get(corrida[2]).addCarona(usuario);
-                    registros.get(usuario).addCorrida(ID);
-
-                    temp.remove(usuario);
-                    return "OK|" + okays.CORRIDA_RESERVADA;
-                }
-            }
-        }
-        
-        temp.remove(usuario);
-        return "ERRO|" + erros.ID_INVALIDO;
+        return reservarCorridaGlobal(idPassageiro, usuario, idLocal, idGlobal, origem, destino);
     }
 
-    public synchronized static String historico(String usuario) {
-        if (registros.get(usuario).getCorridas().isEmpty()) return "ERRO|" + erros.HISTORICO_VAZIO;
-        
-        List<String> encontrados = new ArrayList<String>();
-        for (String corrida : registros.get(usuario).getCorridas()) {
-            corrida corridaAtual = corridas.get(corrida);
-            encontrados.add(String.format("---------- Corrida finalizada: %s ----------\\n" +
-                "motorista: %s\\norigem: %s\\ndestino: %s\\n" +
-                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                corridaAtual.getID(), corridaAtual.getmotorista(), corridaAtual.getOrigem(), corridaAtual.getDestino(),
-                corridaAtual.getHorario().getDia(), corridaAtual.getHorario().getMes(), corridaAtual.getHorario().getAno(), 
-                corridaAtual.getHorario().getHora(), corridaAtual.getBancos(), corridaAtual.getPreco()));
+
+    // Reserva distribuída: recebe diretamente o ID global do passageiro.
+    public synchronized static String reservarCorridaGlobal(
+            String idPassageiro, String usuarioLocal,
+            String idLocal, String idGlobal, String origem, String destino) {
+
+        corrida c = corridas.get(idLocal);
+
+        if (c == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
         }
 
-        String historico = String.join(";", encontrados);
-        return "OK|" + okays.HISTORICO_ENCONTRADO + "|" + historico;
+        if (c.getFinalizada()) {
+            return "ERRO|" + erros.CORRIDA_FINALIZADA;
+        }
+
+        String idMotorista = identificadorGlobal.gerar(
+                empresa, c.getmotorista()
+        );
+
+        if (idMotorista.equals(idPassageiro)) {
+            return "ERRO|" + erros.CORRIDA_MOTORISTA;
+        }
+
+        if (c.getCarona().containsKey(idPassageiro)) {
+            return "ERRO|" + erros.CORRIDA_JA_RESERVADA;
+        }
+
+        if (!c.addCarona(idPassageiro, origem, destino)) {
+            return "ERRO|" + erros.CORRIDA_CHEIA;
+        }
+
+        boolean atualizouHistorico = usuarioLocal != null && registros.containsKey(usuarioLocal);
+
+        if (atualizouHistorico) {
+            registros.get(usuarioLocal).addCorrida(idGlobal);
+        }
+
+        // Persiste a reserva e o histórico atualizado.
+        if (!salvarDados()) {
+            // Desfaz a reserva em memória.
+            c.removeCarona(idPassageiro);
+
+            if (atualizouHistorico) {
+                registros.get(usuarioLocal).removerCorrida(idGlobal);
+            }
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        return "OK|" + okays.CORRIDA_RESERVADA;
     }
 
-    // Cancela a corrida para motorista ou passageiro, se for motorista, a corrida é finalizada, se for passageiro, remove a carona do histórico do usuário e da corrida
-    public synchronized static String cancelarCorrida(String usuario, String ID) {
-        if (ID.startsWith("CAR")) {
-            if (!corridas.containsKey(ID)) return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
-            else if (corridas.get(ID).getFinalizada()) return "ERRO|" + erros.CORRIDA_FINALIZADA;
+    // Prepara uma reserva global e persiste o bloqueio das vagas.
+    public synchronized static String prepararReservaGlobal(
+            String idTransacao,
+            String idPassageiro,
+            String idLocal,
+            String origem,
+            String destino) {
 
-            if (corridas.get(ID).getmotorista().equals(usuario)) {
-                corridas.get(ID).finalizarCorrida(); // Corrida fica no histórico do motorista e dos passageiros, mas não pode mais ser reservada
-            
-                // Procura essa corrida entre as corridas compostas
-                for (String corrida : corridas.keySet()) {
-                    if (corrida.startsWith("COM")) {
-                        cancelarComposta((corridaComposta) corridas.get(corrida), usuario, ID);
-                    }
-                }
-
-                return "OK|" + okays.CORRIDA_CANCELADA;
-            }
-            
-            else if (corridas.get(ID).getCarona().contains(usuario)) {
-                corridas.get(ID).removeCarona(usuario);
-                registros.get(usuario).removerCorrida(ID);
-                return "OK|" + okays.CORRIDA_CANCELADA;
-            }
-
-            else return "ERRO|" + erros.CORRIDA_NAO_RESERVADA;
+        if (idTransacao == null || idPassageiro == null
+                || idLocal == null || origem == null || destino == null) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
         }
 
-        else if (ID.startsWith("COM")) {
-            if (!corridas.containsKey(ID)) return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
-            // Verifica se o usuário reservou a corrida composta
-            if (!corridas.get(ID).getCarona().contains(usuario)) return "ERRO|" + erros.CORRIDA_NAO_RESERVADA;
+        corrida c = corridas.get(idLocal);
 
-            String composta = cancelarComposta((corridaComposta) corridas.get(ID), usuario, ID);
-            if (composta.startsWith("OK")) {
-                corridas.get(ID).finalizarCorrida();
-                return "OK|" + okays.CORRIDA_CANCELADA;
-            }
+        if (c == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
         }
 
-        return "ERRO|" + erros.ID_INVALIDO;
+        if (c.getFinalizada()) {
+            return "ERRO|" + erros.CORRIDA_FINALIZADA;
+        }
+
+        String idMotorista = identificadorGlobal.gerar(
+                empresa, c.getmotorista()
+        );
+
+        if (idMotorista.equals(idPassageiro)) {
+            return "ERRO|" + erros.CORRIDA_MOTORISTA;
+        }
+
+        String estado = c.obterEstadoTransacao(idTransacao);
+
+        if (estado != null) {
+            if (!c.correspondeTransacao(
+                    idTransacao, idPassageiro, origem, destino)) {
+                return "ERRO|" + erros.FALHA_NA_RESERVA;
+            }
+
+            if (estado.equals("PREPARADA")) {
+                return "OK|" + okays.RESERVA_PREPARADA;
+            }
+
+            if (estado.equals("CONFIRMADA")) {
+                return "OK|" + okays.RESERVA_CONFIRMADA;
+            }
+
+            return "ERRO|" + erros.FALHA_NA_RESERVA;
+        }
+
+        if (!c.prepararCarona(
+                idTransacao, idPassageiro, origem, destino)) {
+            return "ERRO|" + erros.CORRIDA_CHEIA;
+        }
+
+        // O bloqueio só é considerado preparado após ser salvo.
+        if (!salvarDados()) {
+            c.abortarCarona(idTransacao);
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        return "OK|" + okays.RESERVA_PREPARADA;
     }
 
-    public synchronized static String cancelarComposta(corridaComposta corrida, String usuario, String ID) {
-        String corrida1 = corrida.getCorrida1();
-        String corrida2 = corrida.getCorrida2();
-
-        // Corrida1 é a corrida cancelada e o usuário é o motorista
-        if (corrida1.equals(ID) && corridas.get(corrida1).getmotorista().equals(usuario)) {
-            corridas.get(corrida.getID()).finalizarCorrida();
-            corridas.get(corrida2).removeCarona(usuario);
+    // Confirma uma reserva previamente preparada.
+    public synchronized static String confirmarReservaGlobal(String idTransacao,  String idLocal) {
+        if (idTransacao == null || idLocal == null) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
         }
 
-        // Corrida2 é a corrida cancelada e o usuário é o motorista
-        else if (corrida2.equals(ID) && corridas.get(corrida2).getmotorista().equals(usuario)) {
-            corridas.get(corrida.getID()).finalizarCorrida();
-            corridas.get(corrida1).removeCarona(usuario);
+        corrida c = corridas.get(idLocal);
+
+        if (c == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
         }
 
-        // Corrida1 é a corrida cancelada e usuário é passageiro
-        else if (corrida1.equals(ID) && corridas.get(corrida1).getCarona().contains(usuario)) {
-            corridas.get(corrida1).removeCarona(usuario);
+        String estado = c.obterEstadoTransacao(idTransacao);
+
+        if ("CONFIRMADA".equals(estado)) {
+            return "OK|" + okays.RESERVA_CONFIRMADA;
         }
 
-        // Corrida2 é a corrida cancelada e usuário é passageiro
-        else if (corrida2.equals(ID) && corridas.get(corrida2).getCarona().contains(usuario)) {
-            corridas.get(corrida2).removeCarona(usuario);
+        if (!"PREPARADA".equals(estado)) {
+            return "ERRO|" + erros.RESERVA_NAO_PREPARADA;
         }
 
-        // corrida composta é a corrida cancelada
-        else if (corrida.getID().equals(ID)) {
-            corridas.get(corrida1).removeCarona(usuario);
-            corridas.get(corrida2).removeCarona(usuario);
+        String idPassageiro = c.obterPassageiroPendente(idTransacao);
+
+        if (idPassageiro == null) {
+            return "ERRO|" + erros.RESERVA_NAO_PREPARADA;
+        }
+
+        if (!c.confirmarCarona(idTransacao)) {
+            return "ERRO|" + erros.FALHA_AO_CONFIRMAR;
+        }
+
+        if (!salvarDados()) {
+            // Recupera a pendência se a persistência falhar.
+            boolean restaurou = c.reverterConfirmacao(
+                    idTransacao, idPassageiro
+            );
+
+            if (!restaurou) {
+                System.err.println(
+                        "ERRO CRÍTICO: falha ao reverter COMMIT "
+                        + idTransacao
+                );
+            }
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        return "OK|" + okays.RESERVA_CONFIRMADA;
+    }
+
+    // Aborta uma reserva preparada e devolve as vagas.
+    public synchronized static String abortarReservaGlobal(
+            String idTransacao,
+            String idLocal) {
+
+        if (idTransacao == null || idLocal == null) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
+        corrida c = corridas.get(idLocal);
+
+        if (c == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
+        }
+
+        String estado = c.obterEstadoTransacao(idTransacao);
+
+        if ("ABORTADA".equals(estado)) {
+            return "OK|" + okays.RESERVA_ABORTADA;
+        }
+
+        if (!"PREPARADA".equals(estado)) {
+            return "ERRO|" + erros.RESERVA_NAO_PREPARADA;
+        }
+
+        String idPassageiro = c.obterPassageiroPendente(idTransacao);
+        int[] reserva = c.obterVetorPendente(idTransacao);
+
+        if (idPassageiro == null || reserva == null) {
+            return "ERRO|" + erros.RESERVA_NAO_PREPARADA;
+        }
+
+        if (!c.abortarCarona(idTransacao)) {
+            return "ERRO|" + erros.FALHA_AO_ABORTAR;
+        }
+
+        if (!salvarDados()) {
+            // Restaura o bloqueio caso o cancelamento não seja persistido.
+            boolean restaurou = c.restaurarPendencia(
+                    idTransacao, idPassageiro, reserva
+            );
+
+            if (!restaurou) {
+                System.err.println(
+                        "ERRO CRÍTICO: falha ao restaurar ABORT "
+                        + idTransacao
+                );
+            }
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        return "OK|" + okays.RESERVA_ABORTADA;
+    }
+
+    // Gera um ID global para o passageiro local e reaproveita o método de cancelamento global
+    public synchronized static String cancelarCorridaLocal(String usuario, String idLocal, String IdGlobal) {
+        String idPassageiro = identificadorGlobal.gerar(empresa, usuario);
+
+        return cancelarCorridaGlobal(idPassageiro, usuario, idLocal, IdGlobal);
+    }
+
+    // Cancela a reserva de um passageiro em uma corrida local, independende de onde seja o usuario
+    public synchronized static String cancelarCorridaGlobal(
+        String idPassageiro,
+        String usuarioLocal,
+        String idLocal,
+        String idGlobal) {
+
+        corrida c = corridas.get(idLocal);
+
+        if (c == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
+        }
+
+        if (c.getFinalizada()) {
+            return "ERRO|" + erros.CORRIDA_FINALIZADA;
+        }
+
+        if (!identificadorGlobal.gerar(empresa, idLocal).equals(idGlobal)) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
+        int[] reservaOriginal = c.getCarona().get(idPassageiro);
+
+        if (reservaOriginal == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_RESERVADA;
+        }
+
+        // Preserva uma cópia para eventual rollback.
+        int[] reserva = reservaOriginal.clone();
+
+        // Verifica se a reserva pertence a uma transação distribuída.
+        String idTransacao =
+                c.obterTransacaoConfirmada(idPassageiro);
+
+        if ("".equals(idTransacao)) {
+            return "ERRO|" + erros.FALHA_NA_RESERVA;
+        }
+
+        boolean cancelou;
+
+        if (idTransacao != null) {
+            // Reserva composta: atualiza também o estado da transação.
+            cancelou = c.cancelarReservaConfirmada(
+                    idTransacao, idPassageiro
+            );
+        } else {
+            // Reserva direta: não existe transação distribuída.
+            cancelou = c.removeCarona(idPassageiro);
+        }
+
+        if (!cancelou) {
+            return "ERRO|" + erros.FALHA_NA_RESERVA;
+        }
+
+        boolean atualizouHistorico =
+                usuarioLocal != null && registros.containsKey(usuarioLocal);
+
+        if (atualizouHistorico) {
+            registros.get(usuarioLocal).removerCorrida(idGlobal);
+        }
+
+        // Persiste o cancelamento.
+        if (!salvarDados()) {
+
+            boolean restaurou;
+
+            if (idTransacao != null) {
+                // Restaura a reserva composta e seu estado CONFIRMADA.
+                restaurou = c.restaurarCancelamento(
+                        idTransacao, idPassageiro
+                );
+            } else {
+                // Restaura a reserva direta.
+                restaurou = c.restaurarCarona(
+                        idPassageiro, reserva
+                );
+            }
+
+            if (atualizouHistorico) {
+                registros.get(usuarioLocal).addCorrida(idGlobal);
+            }
+
+            if (!restaurou) {
+                System.err.println(
+                        "ERRO CRÍTICO: não foi possível restaurar a reserva "
+                        + idPassageiro + " na corrida " + idGlobal
+                );
+            }
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
         }
 
         return "OK|" + okays.CORRIDA_CANCELADA;
     }
 
-    // Compara combinações de corrida para evitar repetir uma mesma corrida combinada
-    public static boolean compararComps(List<String> comp, String corrida1, String corrida2) {
-        for (String corrida : comp) {
-            String corridas[] = corrida.split(";");
-            if (corrida1.equals(corridas[1]) && corrida2.equals(corridas[2])) return true;
-            else if (corrida1.equals(corridas[2]) && corrida2.equals(corridas[1])) return true;
+    // Cancela uma etapa pertencente a uma reserva composta.
+    public synchronized static String cancelarReservaCompostaGlobal(
+            String transacaoId,
+            String idPassageiro,
+            String idLocal,
+            String idGlobal,
+            String origem,
+            String destino) {
+
+        if (transacaoId == null || transacaoId.isBlank()
+                || idPassageiro == null || idPassageiro.isBlank()
+                || idLocal == null || idLocal.isBlank()
+                || idGlobal == null || idGlobal.isBlank()
+                || origem == null || origem.isBlank()
+                || destino == null || destino.isBlank()) {
+
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
         }
+
+        corrida c = corridas.get(idLocal);
+
+        if (c == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
+        }
+
+        if (!identificadorGlobal.gerar(empresa, idLocal).equals(idGlobal)) {
+            return "ERRO|" + erros.ENTRADA_INVALIDA;
+        }
+
+        if (c.getFinalizada()) {
+            return "ERRO|" + erros.CORRIDA_FINALIZADA;
+        }
+
+        // Confere se a transação realmente pertence a esta reserva.
+        if (!c.correspondeTransacao(
+                transacaoId, idPassageiro, origem, destino)) {
+
+            return "ERRO|" + erros.FALHA_NA_RESERVA;
+        }
+
+        String estado = c.obterEstadoTransacao(transacaoId);
+
+        // Permite repetir a solicitação sem cancelar duas vezes.
+        if ("CANCELADA".equals(estado)) {
+            return "OK|" + okays.CORRIDA_CANCELADA;
+        }
+
+        if (!"CONFIRMADA".equals(estado)) {
+            return "ERRO|" + erros.FALHA_NA_RESERVA;
+        }
+
+        // Preserva a reserva para eventual rollback.
+        int[] reservaOriginal = c.getCarona().get(idPassageiro);
+
+        if (reservaOriginal == null) {
+            return "ERRO|" + erros.CORRIDA_NAO_RESERVADA;
+        }
+
+        boolean cancelou = c.cancelarReservaConfirmada(
+                transacaoId, idPassageiro
+        );
+
+        if (!cancelou) {
+            return "ERRO|" + erros.FALHA_NA_RESERVA;
+        }
+
+        // Persiste o cancelamento.
+        if (!salvarDados()) {
+
+            boolean restaurou = c.restaurarCancelamento(
+                    transacaoId, idPassageiro
+            );
+
+            if (!restaurou) {
+                System.err.println(
+                        "ERRO CRÍTICO: não foi possível restaurar a reserva "
+                        + idPassageiro + " na corrida " + idGlobal
+                );
+            }
+
+            return "ERRO|" + erros.FALHA_AO_SALVAR;
+        }
+
+        return "OK|" + okays.CORRIDA_CANCELADA;
+    }
+
+
+    public static synchronized List<String> historicoLocal(String passageiroGlobal) {
+        List<String> resultado = new ArrayList<>();
+
+        for (Map.Entry<String, corrida> entrada : corridas.entrySet()) {
+            corrida c = entrada.getValue();
+
+            if (c.getCarona().containsKey(passageiroGlobal)) {
+                String registro = "DIRETA;"
+                        + identificadorGlobal.gerar(empresa, entrada.getKey()) + ";"
+                        + c.getOrigem() + ";"
+                        + c.getDestino() + ";"
+                        + c.getPreco() + ";"
+                        + c.getHorario().toString() + ";"
+                        + c.getmotorista() + ";"
+                        + c.getTrechos().stream().mapToInt(Integer::intValue).min().orElse(0);
+
+                resultado.add(registro);
+            }
+        }
+
+        return resultado;
+    }
+
+    public static synchronized boolean registrarHistoricoComposto(
+        String passageiroGlobal,
+        List<String> idsCorridas) {
+
+        cliente passageiro = null;
+
+        // Localiza o passageiro pelo identificador global.
+        for (cliente c : registros.values()) {
+            if (c.getIdGlobal().equals(passageiroGlobal)) {
+                passageiro = c;
+                break;
+            }
+        }
+
+        if (passageiro == null) {
+            return false;
+        }
+
+        // Guarda quais IDs foram adicionados para permitir rollback.
+        List<String> adicionados = new ArrayList<>();
+
+        for (String id : idsCorridas) {
+            if (!passageiro.getCorridas().contains(id)) {
+                passageiro.addCorrida(id);
+                adicionados.add(id);
+            }
+        }
+
+        // Persiste o histórico atualizado.
+        if (salvarDados()) {
+            return true;
+        }
+
+        // Se a persistência falhar, desfaz as alterações em memória.
+        for (String id : adicionados) {
+            passageiro.removerCorrida(id);
+        }
+
         return false;
     }
 
-    // ATENÇÃO
-    public static void atualizarVizinhanca(List<String> trechos) {
-        for (String trecho : trechos) {
-            if (cidades.get(trecho) == null) cidades.add(new cidade(trecho));
+    // Remove do histórico todas as etapas de uma reserva composta.
+    public synchronized static boolean removerHistoricoComposto(
+            String passageiroGlobal,
+            List<String> idsCorridas) {
+
+        if (passageiroGlobal == null || passageiroGlobal.isBlank()
+                || idsCorridas == null || idsCorridas.isEmpty()) {
+            return false;
         }
-    }
 
+        // Localiza o passageiro pelo identificador global.
+        cliente passageiro = null;
 
-    /* Ferramenta de busca de corridas. Busca combinações de origem-destino, parada-destino, origem-parada, parada-parada 
-       para entregar uma possível corrida para o usuário, inclusive combinando corridas. */
-    public synchronized static String buscarCorridas(String usuario, String dados) {
-        String busca[] = dados.split("\\;");
-        String origem = busca[0];
-        String destino = busca[1];
-        List<String> encontradas = new ArrayList<String>();
-        List<String> compostas = new ArrayList<String>();
-
-        // Busca corridas que tenham a cidade de origem e destino desejada entre a sua origem, destino e paradas.
-        for (String corrida : corridas.keySet()) {
-            corrida corridaAtual = corridas.get(corrida);
-            if (corridaAtual.getFinalizada() || corridaAtual.getBancos() == 0) continue;
-
-            // Corrida sai da cidade de origem e termina na cidade de destino
-            else if (corridaAtual.getOrigem().equals(origem) && corridaAtual.getDestino().equals(destino)) {
-                encontradas.add(String.format("---------- Corrida até destino (final): %s ----------\\n" + //
-                    "motorista: %s\\norigem: %s\\ndestino: %s\\n" +
-                    "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                    corridaAtual.getID(), corridaAtual.getmotorista(), corridaAtual.getOrigem(), corridaAtual.getDestino(), 
-                    corridaAtual.getHorario().getDia(), corridaAtual.getHorario().getMes(), corridaAtual.getHorario().getAno(), 
-                    corridaAtual.getHorario().getHora(), corridaAtual.getBancos(), corridaAtual.getPreco()));
-            }
-
-            else if (!corridaAtual.getParadas().isEmpty()) {
-                for (String parada : corridaAtual.getParadas()) {
-                    // Corrida sai da origem e passa pelo destino
-                    if (corridaAtual.getOrigem().equals(origem) && parada.equals(destino)) {
-                        encontradas.add(String.format("---------- Corrida até destino (parada): %s ----------\\n" +
-                            "motorista: %s\\norigem: %s\\nparada de descida: %s (%dª parada)\\n" +
-                            "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço por trecho: %d", 
-                            corridaAtual.getID(), corridaAtual.getmotorista(), corridaAtual.getOrigem(), parada, 
-                            corridaAtual.getParadas().indexOf(parada) + 1, 
-                            corridaAtual.getHorario().getDia(), corridaAtual.getHorario().getMes(), corridaAtual.getHorario().getAno(), 
-                            corridaAtual.getHorario().getHora(), corridaAtual.getBancos(), corridaAtual.getPreco()));
-                    }
-
-                    // Corrida passa pela origem e termina no destino
-                    else if (parada.equals(origem) && corridaAtual.getDestino().equals(destino)) {
-                        encontradas.add(String.format("---------- Corrida até destino (parada): %s ----------\\n" +
-                            "motorista: %s\\nparada de embarque: %s (%dª parada)\\ndestino: %s\\n" +
-                            "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço por trecho: %d", 
-                            corridaAtual.getID(), corridaAtual.getmotorista(), parada, 
-                            corridaAtual.getParadas().indexOf(parada) + 1, corridaAtual.getDestino(), 
-                            corridaAtual.getHorario().getDia(), corridaAtual.getHorario().getMes(), corridaAtual.getHorario().getAno(), 
-                            corridaAtual.getHorario().getHora(), corridaAtual.getBancos(), corridaAtual.getPreco()));
-                    }
-
-                    // Verifica se a Corrida passa pela origem e pelo destino
-                    else if (parada.equals(origem)) {
-                        for (String parada2 : corridaAtual.getParadas()) {
-                            // Ignora se a parada destino vem antes de parada origem ou se é a mesma parada
-                            if (corridaAtual.getParadas().indexOf(parada2) <= corridaAtual.getParadas().indexOf(parada)) continue;
-
-                            else if (parada2.equals(destino)) {
-                                encontradas.add(String.format("---------- Corrida até destino (paradas): %s ----------\\n" +
-                                    "motorista: %s\\nparada de embarque: %s (%dª parada)\\nparada de descida: %s (%dª parada)\\n" +
-                                    "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço por trecho: %d", 
-                                    corridaAtual.getID(), corridaAtual.getmotorista(), parada, corridaAtual.getParadas().indexOf(parada) + 1, 
-                                    parada2, corridaAtual.getParadas().indexOf(parada2) + 1, 
-                                    corridaAtual.getHorario().getDia(), corridaAtual.getHorario().getMes(), corridaAtual.getHorario().getAno(), 
-                                    corridaAtual.getHorario().getHora(), corridaAtual.getBancos(), corridaAtual.getPreco()));
-                                break; // Já achou o destino, não precisa continuar procurando
-                            }
-                        }
-                    }
-                }
+        for (cliente c : registros.values()) {
+            if (c.getIdGlobal().equals(passageiroGlobal)) {
+                passageiro = c;
+                break;
             }
         }
 
-        /* Busca duas corridas, onde a primeira sai da cidade de origem e a segunda sai de uma parada em comum
-           com a primeira para a cidade destino, então monta uma corrida combinada */
-        for (String corrida1 : corridas.keySet()) {
-            corrida corridaAtual1 = corridas.get(corrida1);
-            if (corridaAtual1.getFinalizada() || corridaAtual1.getBancos() == 0) continue;
-            
-            for (String corrida2 : corridas.keySet()) {
-                corrida corridaAtual2 = corridas.get(corrida2);
-                if (corridaAtual2.getFinalizada() || corridaAtual2.getBancos() == 0 || corridaAtual2.equals(corridaAtual1) ||
-                    corridaAtual2.compararHora(corridaAtual1.getHorario())) continue;
-                
-                // Corrida 1 sai da origem e termina na origem da corrida 2, corrida 2 termina no destino
-                else if (corridaAtual1.getOrigem().equals(origem) && corridaAtual2.getOrigem().equals(corridaAtual1.getDestino())
-                    && corridaAtual2.getDestino().equals(destino) && !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                    String ID = String.format("COM%03d", corridas.size() + 1);
-                    String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() + ";" + origem + ";" + destino;
-                    compostas.add(composta);
-
-                    encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                        "motorista 1: %s\\norigem: %s\\ndestino: %s\\n" +
-                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                        "motorista 2: %s\\norigem: %s\\ndestino: %s\\n" + 
-                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                        ID, corridaAtual1.getmotorista(), 
-                        corridaAtual1.getOrigem(), corridaAtual1.getDestino(), 
-                        corridaAtual1.getHorario().getDia(), 
-                        corridaAtual1.getHorario().getMes(), 
-                        corridaAtual1.getHorario().getAno(), 
-                        corridaAtual1.getHorario().getHora(), 
-                        corridaAtual1.getBancos(), 
-                        corridaAtual1.getPreco(), 
-                        corridaAtual2.getmotorista(), 
-                        corridaAtual2.getOrigem(), 
-                        corridaAtual2.getDestino(), 
-                        corridaAtual2.getHorario().getDia(), 
-                        corridaAtual2.getHorario().getMes(), 
-                        corridaAtual2.getHorario().getAno(), 
-                        corridaAtual2.getHorario().getHora(), 
-                        corridaAtual2.getBancos(), 
-                        corridaAtual2.getPreco()));
-                }
-
-                else if (!corridaAtual1.getParadas().isEmpty()) {
-                    for (String parada : corridaAtual1.getParadas()) {
-
-                        // Corrida 1 sai da cidade de origem e passa pela origem da corrida 2, corrida 2 termina no destino
-                        if (corridaAtual1.getOrigem().equals(origem) && corridaAtual2.getOrigem().equals(parada) && corridaAtual2.getDestino().equals(destino)
-                            && !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                            String ID = String.format("COM%03d", corridas.size() + 1);
-                            String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() + ";" + origem + ";" + destino;
-                            compostas.add(composta);
-
-                            encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                                "motorista 1: %s\\norigem: %s\\nparada de descida: %s (%dª parada)\\n" +
-                                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                                "motorista 2: %s\\norigem: %s\\ndestino: %s\\n" + 
-                                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                                ID, corridaAtual1.getmotorista(), 
-                                corridaAtual1.getOrigem(), 
-                                parada, corridaAtual1.getParadas().indexOf(parada) + 1, 
-                                corridaAtual1.getHorario().getDia(), 
-                                corridaAtual1.getHorario().getMes(), 
-                                corridaAtual1.getHorario().getAno(), 
-                                corridaAtual1.getHorario().getHora(), 
-                                corridaAtual1.getBancos(), 
-                                corridaAtual1.getPreco(), 
-                                corridaAtual2.getmotorista(), 
-                                corridaAtual2.getOrigem(), 
-                                corridaAtual2.getDestino(), 
-                                corridaAtual2.getHorario().getDia(), 
-                                corridaAtual2.getHorario().getMes(), 
-                                corridaAtual2.getHorario().getAno(), 
-                                corridaAtual2.getHorario().getHora(), 
-                                corridaAtual2.getBancos(), 
-                                corridaAtual2.getPreco()));
-                        }
-
-                        // Corrida 1 sai da origem
-                        else if (corridaAtual1.getOrigem().equals(origem) && !corridaAtual2.getParadas().isEmpty()) {
-                            for (String parada3 : corridaAtual2.getParadas()) { 
-
-                                // Corrida 1 passa pela parada da corrida 2 e a corrida 2 termina no destino
-                                if (parada.equals(parada3) && corridaAtual2.getDestino().equals(destino)
-                                    && !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                                    String ID = String.format("COM%03d", corridas.size() + 1);
-                                    String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() + ";" + origem + ";" + destino;
-                                    compostas.add(composta);
-
-                                    encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                                        "motorista 1: %s\\norigem: %s\\nparada de descida: %s (%dª parada)\\n" +
-                                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                                        "motorista 2: %s\\nparada de embarque: %s (%dª parada)\\ndestino: %s\\n" + 
-                                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                                        ID, corridaAtual1.getmotorista(), 
-                                        corridaAtual1.getOrigem(), 
-                                        parada, corridaAtual1.getParadas().indexOf(parada) + 1, 
-                                        corridaAtual1.getHorario().getDia(), 
-                                        corridaAtual1.getHorario().getMes(), 
-                                        corridaAtual1.getHorario().getAno(), 
-                                        corridaAtual1.getHorario().getHora(), 
-                                        corridaAtual1.getBancos(), 
-                                        corridaAtual1.getPreco(), 
-                                        corridaAtual2.getmotorista(), 
-                                        parada3, corridaAtual2.getParadas().indexOf(parada3) + 1, 
-                                        corridaAtual2.getDestino(), 
-                                        corridaAtual2.getHorario().getDia(), 
-                                        corridaAtual2.getHorario().getMes(), 
-                                        corridaAtual2.getHorario().getAno(), 
-                                        corridaAtual2.getHorario().getHora(), 
-                                        corridaAtual2.getBancos(), 
-                                        corridaAtual2.getPreco()));
-                                }
-                                
-                                // Corrida 1 passa pela parada da corrida 2 e corrida 2 passa pelo destino
-                                else if (parada.equals(parada3)) {
-                                    for (String parada4 : corridaAtual2.getParadas()) {
-                                        if (corridaAtual2.getParadas().indexOf(parada4) <= corridaAtual2.getParadas().indexOf(parada3)) continue;
-
-                                        else if (parada4.equals(destino) && !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                                            String ID = String.format("COM%03d", corridas.size() + 1);
-                                            String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() + ";" + origem + ";" + destino;
-                                            compostas.add(composta);
-
-                                            encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                                                "motorista 1: %s\\norigem: %s\\nparada de descida: %s (%dª parada)\\n" +
-                                                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                                                "motorista 2: %s\\nparada de embarque: %s (%dª parada)\\ndestino: %s\\n" + 
-                                                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                                                ID, corridaAtual1.getmotorista(), 
-                                                corridaAtual1.getOrigem(), 
-                                                parada, corridaAtual1.getParadas().indexOf(parada) + 1, 
-                                                corridaAtual1.getHorario().getDia(), 
-                                                corridaAtual1.getHorario().getMes(), 
-                                                corridaAtual1.getHorario().getAno(), 
-                                                corridaAtual1.getHorario().getHora(), 
-                                                corridaAtual1.getBancos(), 
-                                                corridaAtual1.getPreco(), 
-                                                corridaAtual2.getmotorista(), 
-                                                parada3, corridaAtual2.getParadas().indexOf(parada3) + 1, 
-                                                parada4, corridaAtual2.getParadas().indexOf(parada4) + 1,  
-                                                corridaAtual2.getHorario().getDia(), 
-                                                corridaAtual2.getHorario().getMes(), corridaAtual2.getHorario().getAno(), 
-                                                corridaAtual2.getHorario().getHora(), 
-                                                corridaAtual2.getBancos(), 
-                                                corridaAtual2.getPreco()));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Corrida 1 passa pela origem
-                        else if (parada.equals(origem) && !corridaAtual2.getParadas().isEmpty()) {
-                            for (String parada2 : corridaAtual1.getParadas()) {
-                                if (corridaAtual1.getParadas().indexOf(parada2) <= corridaAtual1.getParadas().indexOf(parada)) continue;
-                                
-                                // corrida 1 passa pela origem da corrida 2 e corrida 2 termina no destino
-                                else if (parada2.equals(corridaAtual2.getOrigem()) && corridaAtual2.getDestino().equals(destino)
-                                    && !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                                    String ID = String.format("COM%03d", corridas.size() + 1);
-                                    String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() + ";" + origem + ";" + destino;
-                                    compostas.add(composta);
-
-                                    encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                                        "motorista 1: %s\\nparada de embarque: %s (%dª parada)\\nparada de descida: %s (%dª parada)\\n" +
-                                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                                        "motorista 2: %s\\norigem: %s\\ndestino: %s\\n" + 
-                                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                                        ID, corridaAtual1.getmotorista(), 
-                                        parada, corridaAtual1.getParadas().indexOf(parada) + 1, 
-                                        parada2, corridaAtual1.getParadas().indexOf(parada2) + 1, 
-                                        corridaAtual1.getHorario().getDia(), 
-                                        corridaAtual1.getHorario().getMes(), 
-                                        corridaAtual1.getHorario().getAno(), 
-                                        corridaAtual1.getHorario().getHora(), 
-                                        corridaAtual1.getBancos(), 
-                                        corridaAtual1.getPreco(), 
-                                        corridaAtual2.getmotorista(), 
-                                        corridaAtual2.getOrigem(), 
-                                        corridaAtual2.getDestino(), 
-                                        corridaAtual2.getHorario().getDia(), 
-                                        corridaAtual2.getHorario().getMes(), 
-                                        corridaAtual2.getHorario().getAno(), 
-                                        corridaAtual2.getHorario().getHora(), 
-                                        corridaAtual2.getBancos(), 
-                                        corridaAtual2.getPreco()));
-                                }
-
-                                // Corrida 1 passa pela parada da corrida 2
-                                else if (corridaAtual2.getOrigem().equals(parada2)) {
-                                    for (String parada3 : corridaAtual2.getParadas()) {
-                                        
-                                        // corrida 2 termina no destino
-                                        if (parada3.equals(parada2) && corridaAtual2.getDestino().equals(destino) && 
-                                            !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                                            String ID = String.format("COM%03d", corridas.size() + 1);
-                                            String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() + ";" + origem + ";" + destino;
-                                            compostas.add(composta);
-
-                                            encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                                                "motorista 1: %s\\nparada de embarque: %s (%dª parada)\\nparada de descida: %s (%dª parada)\\n" +
-                                                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                                                "motorista 2: %s\\nparada de embarque: %s (%dª parada)\\ndestino: %s\\n" + 
-                                                "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                                                ID, corridaAtual1.getmotorista(), 
-                                                parada, corridaAtual1.getParadas().indexOf(parada) + 1, 
-                                                parada2, corridaAtual1.getParadas().indexOf(parada2) + 1, 
-                                                corridaAtual1.getHorario().getDia(), 
-                                                corridaAtual1.getHorario().getMes(), 
-                                                corridaAtual1.getHorario().getAno(), 
-                                                corridaAtual1.getHorario().getHora(), 
-                                                corridaAtual1.getBancos(), 
-                                                corridaAtual1.getPreco(), 
-                                                corridaAtual2.getmotorista(), 
-                                                parada3, corridaAtual2.getParadas().indexOf(parada3) + 1, 
-                                                corridaAtual2.getDestino(), 
-                                                corridaAtual2.getHorario().getDia(), 
-                                                corridaAtual2.getHorario().getMes(), 
-                                                corridaAtual2.getHorario().getAno(), 
-                                                corridaAtual2.getHorario().getHora(), 
-                                                corridaAtual2.getBancos(), 
-                                                corridaAtual2.getPreco()));
-                                        }
-                                        
-                                        // Corrida 2 passa pelo destino
-                                        else if (parada3.equals(parada2)) {
-                                            for (String parada4 : corridaAtual2.getParadas()) {
-                                                if (corridaAtual2.getParadas().indexOf(parada4) <= corridaAtual2.getParadas().indexOf(parada3)) continue;
-
-                                                else if (parada4.equals(destino) && !compararComps(compostas, corridaAtual1.getID(), corridaAtual2.getID())) {
-                                                    String ID = String.format("COM%03d", corridas.size() + 1);
-                                                    String composta = ID + ";" + corridaAtual1.getID() + ";" + corridaAtual2.getID() 
-                                                                    + ";" + origem + ";" + destino;
-                                                    compostas.add(composta);
-
-                                                    encontradas.add(String.format("---------- Corrida combinada: %s ----------\\n" +
-                                                        "motorista 1: %s\\nparada de embarque: %s (%dª parada)\\nparada de descida: %s (%dª parada)\\n" +
-                                                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d" +
-                                                        "motorista 2: %s\\nparada de embarque: %s (%dª parada)\\nparada de descida: %s (%dª parada)\\n" + 
-                                                        "data e horário: %s/%s/%s %s\\nassentos disponíveis: %d\\npreço: %d", 
-                                                        ID, corridaAtual1.getmotorista(), 
-                                                        parada, corridaAtual1.getParadas().indexOf(parada) + 1, 
-                                                        parada2, corridaAtual1.getParadas().indexOf(parada2) + 1, 
-                                                        corridaAtual1.getHorario().getDia(), 
-                                                        corridaAtual1.getHorario().getMes(), 
-                                                        corridaAtual1.getHorario().getAno(), 
-                                                        corridaAtual1.getHorario().getHora(), 
-                                                        corridaAtual1.getBancos(), 
-                                                        corridaAtual1.getPreco(), 
-                                                        corridaAtual2.getmotorista(), 
-                                                        parada3, corridaAtual2.getParadas().indexOf(parada3) + 1, 
-                                                        parada4, corridaAtual2.getParadas().indexOf(parada4) + 1,
-                                                        corridaAtual2.getHorario().getDia(), 
-                                                        corridaAtual2.getHorario().getMes(), 
-                                                        corridaAtual2.getHorario().getAno(), 
-                                                        corridaAtual2.getHorario().getHora(), 
-                                                        corridaAtual2.getBancos(), 
-                                                        corridaAtual2.getPreco()));
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }       
+        if (passageiro == null) {
+            return false;
         }
 
-        if (encontradas.isEmpty()) return "ERRO|" + erros.CORRIDA_NAO_ENCONTRADA;
-        if (!compostas.isEmpty()) temp.put(usuario, compostas);
+        // Guarda o histórico original para eventual rollback.
+        List<String> historicoOriginal =
+                new ArrayList<>(passageiro.getCorridas());
 
-        String lista = String.join(";", encontradas);
-        return "OK|" + okays.CORRIDA_ENCONTRADA + "|" + lista;
+        // Remove as corridas pertencentes à composta.
+        passageiro.getCorridas().removeAll(idsCorridas);
+
+        // Persiste a alteração.
+        if (!salvarDados()) {
+
+            // Restaura exatamente o histórico anterior.
+            passageiro.getCorridas().clear();
+            passageiro.getCorridas().addAll(historicoOriginal);
+
+            return false;
+        }
+
+        return true;
     }
 }

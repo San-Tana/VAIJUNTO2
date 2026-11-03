@@ -6,6 +6,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 import vaijunto.src.model.erros;
+import vaijunto.src.model.identificadorGlobal;
 
 public class Servidor {
 
@@ -13,6 +14,13 @@ public class Servidor {
 
     public static void main(String[] args) {
         String empresa = args.length > 0 ? args[0] : "EMP_A";
+
+        String respostaConfig = servicosServidor.configurarEmpresa(empresa);
+
+        if (respostaConfig.startsWith("ERRO")) {
+            System.out.println(respostaConfig);
+            return;
+        }
         
         int portaTCP = args.length > 1
                 ? Integer.parseInt(args[1]) : 5000;
@@ -28,8 +36,9 @@ public class Servidor {
         }
 
         try {
-            consorcio = new Consorcio(
-                    empresa, portaREST, parceiros);
+            consorcio = new Consorcio(empresa, portaREST, parceiros);
+            servicosServidor.configurarReservasCompostas(consorcio.obterMapaReservasCompostas());
+
         } catch (IOException e) {
             System.out.println("Erro iniciando REST: "
                     + e.getMessage());
@@ -40,7 +49,7 @@ public class Servidor {
         ExecutorService executor = Executors.newFixedThreadPool(10);
         
 
-        try (ServerSocket servidor = new ServerSocket(porta)) {
+        try (ServerSocket servidor = new ServerSocket(portaTCP)) {
 
             System.out.println("Servidor iniciado." +
                 "\nEmpresa: " + empresa +
@@ -82,8 +91,11 @@ public class Servidor {
             if (mensagem == null) return;
 
             String operacao[] = mensagem.split("\\|", 3);
-            if (operacao.length < 2) saida.println("ERRO|" + erros.MENSAGEM_INVALIDA);
-
+            if (operacao.length < 2) {
+                saida.println("ERRO|" + erros.MENSAGEM_INVALIDA);
+                return;
+            }
+            
             String comando = operacao[0];
             String usuario = operacao[1];
 
@@ -109,7 +121,7 @@ public class Servidor {
                     break;
 
                 case "HISTORICO":
-                    saida.println(servicosServidor.historico(usuario));
+                    saida.println(consorcio.historico(identificadorGlobal.gerar(consorcio.empresa(), usuario)));
                     break;
 
                 case "BUSCAR":
@@ -125,11 +137,15 @@ public class Servidor {
                         saida.println("ERRO|" + erros.MENSAGEM_INVALIDA);
                         break;
                     }
-                    saida.printlnservicosServidor.publicarCorrida(usuario, operacao[2]);
 
-                    if (resposta.startsWith("OK")) {
+                    String respostaPublicacao = servicosServidor.publicarCorrida(usuario, operacao[2]);
+
+                    saida.println(respostaPublicacao);
+
+                    if (respostaPublicacao.startsWith("OK")) {
                         consorcio.publicou();
                     }
+
                     break;
 
                 case "RESERVAR":
@@ -138,20 +154,50 @@ public class Servidor {
                         break;
                     }
 
-                    String id = operacao[2];
+                    String[] dadosReserva = operacao[2].split(";", -1);
 
-                    if (id.contains(":")) {
-                        String[] partes = id.split(":", 2);
-
-                        if (!partes[0].equals(consorcio.empresa())) {
-                            saida.println("ERRO|" + erros.RESERVA_REMOTA_INDISPONIVEL);
-                            break;
-                        }
-
-                        id = partes[1];
+                    if (dadosReserva.length != 3) {
+                        saida.println("ERRO|" + erros.MENSAGEM_INVALIDA);
+                        break;
                     }
 
-                    saida.println(servicosServidor.reservarCorrida(usuario, id));
+                    String id = dadosReserva[0];
+                    String origem = dadosReserva[1];
+                    String destino = dadosReserva[2];
+
+                    try {
+                        String resultado = consorcio.reservarDireta(usuario, id, origem, destino);
+
+                        System.out.println("Resposta da reserva: " + resultado);
+                        saida.println(resultado);
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        saida.println("ERRO|" + erros.FALHA_INTERNA);
+                    }
+                    break;
+                    
+                case "RESERVAR_COMPOSTA":
+                    if (operacao.length < 3 || usuario == null || usuario.isBlank()
+                        || operacao[2] == null || operacao[2].isBlank()) {
+                        saida.println("ERRO|" + erros.MENSAGEM_INVALIDA);
+                        break;
+                    }
+
+                    try {
+                        String resultado = consorcio.reservarComposta(
+                            usuario,
+                            operacao[2]
+                        );
+
+                        System.out.println("Resposta da reserva composta: " + resultado);
+                        saida.println(resultado);
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        saida.println("ERRO|" + erros.FALHA_INTERNA);
+                    }
+
                     break;
 
                 case "CANCELAR":
@@ -160,15 +206,29 @@ public class Servidor {
                         break;
                     }
 
-                    String respostaCancelamento =
-                            servicosServidor.cancelarCorrida(
-                                    usuario, operacao[2]);
+                    String idCancelamento = operacao[2];
+                    String respostaCancelamento;
 
-                    saida.println(respostaCancelamento);
+                    // Cancelamento de itinerário composto.
+                    if (idCancelamento.startsWith("COM")) {
+
+                        respostaCancelamento = consorcio.cancelarComposta(
+                            usuario,
+                            idCancelamento
+                        );
+
+                    } else {
+
+                        // Cancelamento de corrida direta.
+                        respostaCancelamento =
+                            consorcio.cancelarDireta(usuario, idCancelamento);
+                    }
 
                     if (respostaCancelamento.startsWith("OK")) {
                         consorcio.publicou();
                     }
+
+                    saida.println(respostaCancelamento);
                     break;
 
                 default:
@@ -180,8 +240,4 @@ public class Servidor {
             e.printStackTrace();
         }
     }
-
-
-
-
 }

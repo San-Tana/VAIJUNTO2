@@ -1,7 +1,8 @@
 package vaijunto.src.model;
 
+import java.time.LocalDateTime;
+
 public class data {
-    // Resolvi manter todos como String para eviter erros de entrada do usuário.
     private int dia;
     private int mes;
     private int ano;
@@ -18,6 +19,19 @@ public class data {
     public int getMes() { return mes; }
     public int getAno() { return ano; }
     public String getHora() { return horario; }
+
+    public LocalDateTime paraLocalDateTime() {
+        String[] partes = horario.split(":");
+
+        if (partes.length != 2) {
+            throw new IllegalArgumentException("Horário inválido");
+        }
+
+        return LocalDateTime.of(
+            ano, mes, dia,
+            Integer.parseInt(partes[0]),
+            Integer.parseInt(partes[1]));
+    }
 
     @Override 
     public String toString() {return dia + "&" + mes + "&" + ano + "&" + horario; }

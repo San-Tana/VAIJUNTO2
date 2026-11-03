@@ -2,6 +2,7 @@ package vaijunto.src.Server;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import java.lang.reflect.Type;
 
 public final class AdaptadorJson {
 
@@ -17,5 +18,9 @@ public final class AdaptadorJson {
 
     public static <T> T ler(String json, Class<T> classe) {
         return gson.fromJson(json, classe);
+    }
+
+    public static <T> T ler(String json, Type tipo) {
+        return gson.fromJson(json, tipo);
     }
 }
