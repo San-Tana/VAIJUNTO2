@@ -1,0 +1,47 @@
+{
+  "registros": {
+    "passC_3753e_2": {
+      "logado": true,
+      "empresa": "EMP_C",
+      "usuario": "passC_3753e_2",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_14": {
+      "logado": true,
+      "empresa": "EMP_C",
+      "usuario": "passC_3753e_14",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_5": {
+      "logado": true,
+      "empresa": "EMP_C",
+      "usuario": "passC_3753e_5",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_8": {
+      "logado": true,
+      "empresa": "EMP_C",
+      "usuario": "passC_3753e_8",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_11": {
+      "logado": true,
+      "empresa": "EMP_C",
+      "usuario": "passC_3753e_11",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    }
+  },
+  "corridas": {},
+  "reservasCompostas": {},
+  "IDcounter": 1
+}

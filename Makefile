@@ -7,7 +7,7 @@ PORT_C = 5002
 PORT_REST_C = 8083
 
 build:
-	javac -cp "lib/gson-2.15.0.jar" -d out $(find vaijunto -name "*.java")
+	docker build -t $(IMAGE) .
 
 # Comandos para rodar individualmente em terminais separados
 run-a:

@@ -1,0 +1,138 @@
+{
+  "registros": {
+    "motA_3753e": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "motA_3753e",
+      "senha": "senha",
+      "veiculo": {
+        "CNH": "111",
+        "tipo": "carro",
+        "modelo": "C1",
+        "placa": "AAA"
+      },
+      "corridas": [
+        "CAR001"
+      ]
+    },
+    "passC_3753e_9": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passC_3753e_9",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_3": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passC_3753e_3",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_6": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passC_3753e_6",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_12": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passC_3753e_12",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_0": {
+      "logado": true,
+      "empresa": "EMP_A",
+      "usuario": "passC_3753e_0",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": [
+        "EMP_A:CAR001",
+        "EMP_B:CAR001"
+      ]
+    }
+  },
+  "corridas": {
+    "CAR001": {
+      "finalizada": false,
+      "ID": "CAR001",
+      "motorista": "motA_3753e",
+      "origem": "CidadeA",
+      "destino": "CidadeB",
+      "horario": {
+        "dia": 31,
+        "mes": 12,
+        "ano": 2027,
+        "horario": "10:00"
+      },
+      "bancos": 1,
+      "preco": 10,
+      "paradas": [
+        "CidadeA",
+        "CidadeB"
+      ],
+      "vagasPorTrecho": [
+        0
+      ],
+      "caronas": {
+        "EMP_A:passC_3753e_0": [
+          1
+        ]
+      },
+      "reservasPendentes": {
+        "0094e3d2-a1ab-4dfc-a882-44ea5ac8d916": {
+          "idPassageiro": "EMP_A:passC_3753e_0",
+          "origem": "CidadeA",
+          "destino": "CidadeB",
+          "vetor": [
+            1
+          ],
+          "estado": "CONFIRMADA"
+        }
+      }
+    }
+  },
+  "reservasCompostas": {
+    "COMbf24bbde": {
+      "idComposta": "COMbf24bbde",
+      "transacaoId": "0094e3d2-a1ab-4dfc-a882-44ea5ac8d916",
+      "passageiro": "EMP_A:passC_3753e_0",
+      "etapas": [
+        {
+          "detalhes": {
+            "empresa": "EMP_A",
+            "id": "EMP_A:CAR001",
+            "disponivel": true,
+            "preco": 10,
+            "horario": "31\u002612\u00262027\u002610:00",
+            "motorista": "motA_3753e",
+            "vagas": 1
+          },
+          "origem": "CidadeA",
+          "destino": "CidadeB"
+        },
+        {
+          "detalhes": {
+            "empresa": "EMP_B",
+            "id": "EMP_B:CAR001",
+            "disponivel": true,
+            "preco": 20,
+            "horario": "31\u002612\u00262027\u002611:30",
+            "motorista": "motB_3753e",
+            "vagas": 1
+          },
+          "origem": "CidadeB",
+          "destino": "CidadeC"
+        }
+      ]
+    }
+  },
+  "IDcounter": 2
+}

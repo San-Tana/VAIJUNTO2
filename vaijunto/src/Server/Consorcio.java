@@ -116,15 +116,6 @@ public final class Consorcio {
     private record CaminhoEncontrado(
         List<TrechoDisponivel> trechos,
         List<String> paradas) {}
-
-    private record EtapaResposta(
-            String id,
-            String origem,
-            String destino,
-            int preco,
-            String horario,
-            String motorista,
-            int vagas) {}
     
     // Representa a solicitação de uma reserva de corrida
     private record SolicitacaoReserva(
@@ -1645,75 +1636,6 @@ public final class Consorcio {
         }
 
         return sucesso;
-    }
-
-    // Tenta cancelar todas as etapas reservadas anteriormente.
-    private boolean cancelarEtapasReservadas(List<TrechoDisponivel> reservadas, String passageiro, String usuario) {
-
-        boolean completo = true;
-
-        // Cancela na ordem inversa à das reservas.
-        for (int i = reservadas.size() - 1; i >= 0; i--) {
-
-            TrechoDisponivel etapa = reservadas.get(i);
-
-            String idGlobal = etapa.detalhes().id();
-
-            String proprietario =
-                identificadorGlobal.obterEmpresa(idGlobal);
-
-            String idLocal =
-                identificadorGlobal.obterIdLocal(idGlobal);
-
-            try {
-
-                String resultado;
-
-                if (empresa.equals(proprietario)) {
-
-                    resultado = servicosServidor.cancelarCorridaGlobal(
-                        passageiro,
-                        usuario,
-                        idLocal, idGlobal);
-
-                } else {
-
-                    URI base = enderecos.get(proprietario);
-
-                    if (base == null) {
-                        completo = false;
-                        continue;
-                    }
-
-                    SolicitacaoReserva solicitacao =
-                        new SolicitacaoReserva(
-                            passageiro,
-                            idGlobal,
-                            etapa.origem(),
-                            etapa.destino()
-                        );
-
-                    resultado = enviarSolicitacao(
-                        base,
-                        "/api/cancelar",
-                        solicitacao
-                    );
-                }
-
-                if (resultado == null || !resultado.startsWith("OK|")) {
-                    completo = false;
-                }
-
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                completo = false;
-
-            } catch (IOException | RuntimeException e) {
-                completo = false;
-            }
-        }
-
-        return completo;
     }
 
     // Recebe uma solicitação para desfazer uma reserva.

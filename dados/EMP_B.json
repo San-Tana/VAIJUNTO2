@@ -1,0 +1,101 @@
+{
+  "registros": {
+    "passC_3753e_1": {
+      "logado": true,
+      "empresa": "EMP_B",
+      "usuario": "passC_3753e_1",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_4": {
+      "logado": true,
+      "empresa": "EMP_B",
+      "usuario": "passC_3753e_4",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "motB_3753e": {
+      "logado": true,
+      "empresa": "EMP_B",
+      "usuario": "motB_3753e",
+      "senha": "senha",
+      "veiculo": {
+        "CNH": "222",
+        "tipo": "carro",
+        "modelo": "C2",
+        "placa": "BBB"
+      },
+      "corridas": [
+        "CAR001"
+      ]
+    },
+    "passC_3753e_13": {
+      "logado": true,
+      "empresa": "EMP_B",
+      "usuario": "passC_3753e_13",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_10": {
+      "logado": true,
+      "empresa": "EMP_B",
+      "usuario": "passC_3753e_10",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    },
+    "passC_3753e_7": {
+      "logado": true,
+      "empresa": "EMP_B",
+      "usuario": "passC_3753e_7",
+      "senha": "senha",
+      "veiculo": null,
+      "corridas": []
+    }
+  },
+  "corridas": {
+    "CAR001": {
+      "finalizada": false,
+      "ID": "CAR001",
+      "motorista": "motB_3753e",
+      "origem": "CidadeB",
+      "destino": "CidadeC",
+      "horario": {
+        "dia": 31,
+        "mes": 12,
+        "ano": 2027,
+        "horario": "11:30"
+      },
+      "bancos": 1,
+      "preco": 20,
+      "paradas": [
+        "CidadeB",
+        "CidadeC"
+      ],
+      "vagasPorTrecho": [
+        0
+      ],
+      "caronas": {
+        "EMP_A:passC_3753e_0": [
+          1
+        ]
+      },
+      "reservasPendentes": {
+        "0094e3d2-a1ab-4dfc-a882-44ea5ac8d916": {
+          "idPassageiro": "EMP_A:passC_3753e_0",
+          "origem": "CidadeB",
+          "destino": "CidadeC",
+          "vetor": [
+            1
+          ],
+          "estado": "CONFIRMADA"
+        }
+      }
+    }
+  },
+  "reservasCompostas": {},
+  "IDcounter": 2
+}
