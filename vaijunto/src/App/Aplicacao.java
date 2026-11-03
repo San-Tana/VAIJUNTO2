@@ -12,7 +12,17 @@ public class Aplicacao {
     private static String Usuario;
     private static boolean logado = false;
 
+    // Variáveis dinâmicas para conexão
+    private static String hostServidor = "localhost";
+    private static int portaServidor = 5000;
+
     public static void main(String[] args) {
+        // Captura os argumentos da linha de comando, se existirem
+        if (args.length > 0) hostServidor = args[0];
+        if (args.length > 1) portaServidor = Integer.parseInt(args[1]);
+
+        System.out.println("Configurado para conectar em: " + hostServidor + ":" + portaServidor);
+
         Scanner scan = new Scanner(System.in);
         int sair = 0;
         String opcao, resposta;
@@ -105,10 +115,8 @@ public class Aplicacao {
     }
 
     private static String requisicao(String mensagem) {
-        String endereco = "localhost";
-        int porta = 5000;
 
-        try (Socket socket = new Socket(endereco, porta)) {
+        try (Socket socket = new Socket(hostServidor, portaServidor)) {
 
             System.out.println("Conectado ao servidor!");
 

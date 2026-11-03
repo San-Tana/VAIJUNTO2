@@ -3,240 +3,135 @@ package vaijunto.src.Test;
 import java.io.*;
 import java.net.Socket;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class TesteConcorrencia {
 
-    private static final String HOST = "localhost";
-    private static final int PORTA_A = 5000;
+    private static String host = "localhost";
+    private static int portaA = 5000;
+    private static int portaB = 5001;
+    private static int portaC = 5002;
+    
+    private static final int NUM_PASSAGEIROS = 15;
 
     private static class ClienteTeste {
-
         private final int porta;
+        ClienteTeste(int porta) { this.porta = porta; }
 
-        ClienteTeste(int porta) {
-            this.porta = porta;
-        }
-
-        String enviar(String comando) throws IOException {
-
-            try (
-                Socket socket = new Socket(HOST, porta);
-
-                BufferedReader entrada = new BufferedReader(
-                    new InputStreamReader(socket.getInputStream())
-                );
-
-                PrintWriter saida = new PrintWriter(
-                    socket.getOutputStream(), true
-                )
-            ) {
-                System.out.println(
-                    "\n[" + Thread.currentThread().getName()
-                    + "] > " + comando
-                );
-
+        String enviarSimples(String comando) throws IOException {
+            try (Socket socket = new Socket(host, porta);
+                 BufferedReader entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                 PrintWriter saida = new PrintWriter(socket.getOutputStream(), true)) {
                 saida.println(comando);
-
-                String resposta = entrada.readLine();
-
-                System.out.println(
-                    "[" + Thread.currentThread().getName()
-                    + "] < " + resposta
-                );
-
-                if (resposta == null) {
-                    throw new IOException(
-                        "Servidor encerrou a conexão sem responder."
-                    );
-                }
-
-                return resposta;
+                return entrada.readLine();
             }
         }
-    }
-
-    private static void verificar(String resposta, String operacao) {
-        if (resposta == null || !resposta.startsWith("OK|")) {
-            throw new RuntimeException(
-                "Falha em " + operacao + ": " + resposta
-            );
-        }
-    }
-
-    private static String obterIdCorrida(String respostaBusca) {
-
-        String[] partes = respostaBusca.split("\\|", 3);
-
-        if (partes.length < 3) {
-            throw new RuntimeException(
-                "Resposta da busca sem opções: " + respostaBusca
-            );
-        }
-
-        String[] opcoes = partes[2].split("~");
-
-        for (String opcao : opcoes) {
-
-            String[] campos = opcao.split(";", -1);
-
-            if (campos.length >= 8
-                    && campos[0].equals("DIRETA")) {
-                return campos[1];
-            }
-        }
-
-        throw new RuntimeException(
-            "Corrida direta não encontrada na busca."
-        );
     }
 
     public static void main(String[] args) {
+        // Captura portas e host pela linha de comando
+        if (args.length >= 3) {
+            portaA = Integer.parseInt(args[0]);
+            portaB = Integer.parseInt(args[1]);
+            portaC = Integer.parseInt(args[2]);
+        }
+        if (args.length >= 4) {
+            host = args[3];
+        }
 
-        String identificador = UUID.randomUUID()
-            .toString().substring(0, 6);
+        System.out.println("Iniciando teste em " + host + " nas portas: " + portaA + ", " + portaB + ", " + portaC);
 
-        String motorista = "motorista" + identificador;
-        String passageiroA = "passageiroA" + identificador;
-        String passageiroB = "passageiroB" + identificador;
+        String id = UUID.randomUUID().toString().substring(0, 5);
+        String motorista = "mot_" + id;
+        String origem = "DiretaA";
+        String destino = "DiretaB";
 
-        ClienteTeste empresaA = new ClienteTeste(PORTA_A);
-
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-
-        CountDownLatch prontidao = new CountDownLatch(2);
-        CountDownLatch largada = new CountDownLatch(1);
+        ClienteTeste[] empresas = {
+            new ClienteTeste(portaA), 
+            new ClienteTeste(portaB), 
+            new ClienteTeste(portaC)
+        };
 
         try {
-            System.out.println("========== CADASTROS ==========");
+            System.out.println("========== 1. PREPARAÇÃO DO CENÁRIO (3 SERVIDORES) ==========");
 
-            String dadosMotorista =
-                motorista + ";senha123;12345678901&carro&Sedan&ABC1234";
+            // Cadastra motorista e publica a corrida na EMP_A com APENAS 1 VAGA
+            empresas[0].enviarSimples("REGISTRO|" + motorista + ";senha;11111111111&carro&Sedan&ABC1234");
+            String corridaA = origem + ";" + destino + ";31&12&2027&12:00;1;50;" + origem + "&" + destino;
+            empresas[0].enviarSimples("PUBLICAR|" + motorista + "|" + corridaA);
 
-            verificar(
-                empresaA.enviar("REGISTRO|" + dadosMotorista),
-                "cadastro do motorista"
-            );
-
-            verificar(
-                empresaA.enviar("REGISTRO|" + passageiroA + ";senha123"),
-                "cadastro do passageiro A"
-            );
-
-            verificar(
-                empresaA.enviar("REGISTRO|" + passageiroB + ";senha123"),
-                "cadastro do passageiro B"
-            );
-
-            String origem = "CidadeConcorrenciaA";
-            String destino = "CidadeConcorrenciaB";
-
-            System.out.println("\n========== PUBLICAÇÃO ==========");
-
-            String dadosCorrida =
-                origem + ";" + destino
-                + ";3&12&2026&08:00;1;30;"
-                + origem + "&" + destino;
-
-            verificar(
-                empresaA.enviar(
-                    "PUBLICAR|" + motorista + "|" + dadosCorrida
-                ),
-                "publicação da corrida"
-            );
-
-            System.out.println("\n========== IDENTIFICAÇÃO DA CORRIDA ==========");
-
-            String respostaBusca = empresaA.enviar(
-                "BUSCAR|" + passageiroA + "|" + origem + ";" + destino
-            );
-
-            verificar(respostaBusca, "busca da corrida");
-
-            String idCorrida = obterIdCorrida(respostaBusca);
-
-            System.out.println("Corrida identificada: " + idCorrida);
-
-            System.out.println("\n========== DISPUTA PELA ÚLTIMA VAGA ==========");
-
-            Callable<String> reservaA = () -> {
-
-                prontidao.countDown();
-                largada.await();
-
-                return new ClienteTeste(PORTA_A).enviar(
-                    "RESERVAR|" + passageiroA + "|"
-                    + idCorrida + ";" + origem + ";" + destino
-                );
-            };
-
-            Callable<String> reservaB = () -> {
-
-                prontidao.countDown();
-                largada.await();
-
-                return new ClienteTeste(PORTA_A).enviar(
-                    "RESERVAR|" + passageiroB + "|"
-                    + idCorrida + ";" + origem + ";" + destino
-                );
-            };
-
-            Future<String> resultadoA = executor.submit(reservaA);
-            Future<String> resultadoB = executor.submit(reservaB);
-
-            // Aguarda as duas threads chegarem à linha de largada.
-            if (!prontidao.await(10, TimeUnit.SECONDS)) {
-                throw new RuntimeException(
-                    "As threads não ficaram prontas a tempo."
-                );
+            // Cadastra passageiros distribuídos nos 3 servidores
+            System.out.println("Cadastrando " + NUM_PASSAGEIROS + " passageiros (A, B e C)...");
+            String[] passageiros = new String[NUM_PASSAGEIROS];
+            for (int i = 0; i < NUM_PASSAGEIROS; i++) {
+                passageiros[i] = "pass_" + id + "_" + i;
+                empresas[i % 3].enviarSimples("REGISTRO|" + passageiros[i] + ";senha");
             }
 
-            // Libera as duas requisições praticamente juntas.
-            largada.countDown();
+            System.out.println("\nAguardando sincronização entre os 3 servidores (7 segundos)...");
+            Thread.sleep(7000);
 
-            String respostaA = resultadoA.get(15, TimeUnit.SECONDS);
-            String respostaB = resultadoB.get(15, TimeUnit.SECONDS);
-
-            boolean sucessoA = respostaA.startsWith("OK|");
-            boolean sucessoB = respostaB.startsWith("OK|");
-
-            boolean cheiaA = respostaA.contains("CORRIDA CHEIA");
-            boolean cheiaB = respostaB.contains("CORRIDA CHEIA");
-
-            System.out.println("\n========== RESULTADO ==========");
-
-            System.out.println("Passageiro A: " + respostaA);
-            System.out.println("Passageiro B: " + respostaB);
-
-            if (sucessoA && cheiaB) {
-                System.out.println(
-                    "\nTESTE APROVADO: passageiro A reservou a vaga."
-                );
-            }
-            else if (sucessoB && cheiaA) {
-                System.out.println(
-                    "\nTESTE APROVADO: passageiro B reservou a vaga."
-                );
-            }
-            else {
-                throw new RuntimeException(
-                    "Resultado inesperado: era esperada exatamente "
-                    + "uma reserva confirmada e uma resposta de corrida cheia."
-                );
+            System.out.println("\n========== 2. BUSCA DO ID GLOBAL ==========");
+            String respostaBusca = empresas[0].enviarSimples("BUSCAR|" + passageiros[0] + "|" + origem + ";" + destino);
+            
+            if (respostaBusca == null || !respostaBusca.startsWith("OK|")) {
+                throw new RuntimeException("Falha na busca. A corrida não propagou pela rede.");
             }
 
-            System.out.println("\nCorrida: " + idCorrida);
-            System.out.println("Motorista: " + motorista);
+            String idCorridaGlobal = respostaBusca.split("\\|")[2].split("~")[0].split(";")[1];
+            System.out.println("ID Global da corrida: " + idCorridaGlobal);
 
-        } catch (Exception e) {
+            System.out.println("\n========== 3. DISPARO CONCORRENTE TRIPLO ==========");
+            
+            CountDownLatch latchPreparacao = new CountDownLatch(NUM_PASSAGEIROS);
+            CountDownLatch latchDisparo = new CountDownLatch(1);
+            CountDownLatch latchTermino = new CountDownLatch(NUM_PASSAGEIROS);
 
-            System.out.println("\n========== TESTE FALHOU ==========");
-            e.printStackTrace();
+            AtomicInteger sucesso = new AtomicInteger(0);
+            AtomicInteger falha = new AtomicInteger(0);
 
-        } finally {
+            for (int i = 0; i < NUM_PASSAGEIROS; i++) {
+                final int index = i;
+                final int portaAlvo = (i % 3 == 0) ? portaA : ((i % 3 == 1) ? portaB : portaC);
 
-            largada.countDown();
-            executor.shutdownNow();
-        }
+                new Thread(() -> {
+                    try (Socket socket = new Socket(host, portaAlvo);
+                         BufferedReader entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                         PrintWriter saida = new PrintWriter(socket.getOutputStream(), true)) {
+
+                        String comando = "RESERVAR|" + passageiros[index] + "|" + idCorridaGlobal + ";" + origem + ";" + destino;
+                        latchPreparacao.countDown();
+                        latchDisparo.await();
+                        
+                        saida.println(comando);
+                        String resposta = entrada.readLine();
+
+                        if (resposta != null && resposta.startsWith("OK|")) {
+                            sucesso.incrementAndGet();
+                        } else {
+                            falha.incrementAndGet();
+                        }
+                    } catch (Exception e) {
+                        falha.incrementAndGet();
+                    } finally {
+                        latchTermino.countDown();
+                    }
+                }).start();
+            }
+
+            latchPreparacao.await();
+            System.out.println("Todos conectados nas 3 portas. Fogo!");
+            latchDisparo.countDown();
+            latchTermino.await();
+
+            System.out.println("\n========== 4. VALIDAÇÃO ==========");
+            System.out.println("Reservas confirmadas: " + sucesso.get() + " (Esperado: 1)");
+            System.out.println("Reservas rejeitadas: " + falha.get() + " (Esperado: " + (NUM_PASSAGEIROS - 1) + ")");
+            
+            if (sucesso.get() == 1) System.out.println("[APROVADO] Mutex distribuído perfeito!");
+            else System.err.println("[FALHOU] Ocorreu inconsistência.");
+
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }

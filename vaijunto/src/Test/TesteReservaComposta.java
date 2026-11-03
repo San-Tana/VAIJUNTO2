@@ -26,7 +26,7 @@ public class TesteReservaComposta {
 
                 BufferedReader entrada = new BufferedReader(
                     new InputStreamReader(socket.getInputStream())
-                );
+                ); 
 
                 PrintWriter saida = new PrintWriter(
                     socket.getOutputStream(), true
