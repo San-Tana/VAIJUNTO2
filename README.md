@@ -1,16 +1,23 @@
-# VAIJUNTO
+# VAIJUNTO - Consórcio de Caronas
 
-O VaiJunto é um Sistema cliente-servidor para gerenciamento de caronas compartilhadas, desenvolvido em Java utilizando comunicação via TCP/IP. O sistema possui um servidor central responsável por manter os usuários, corridas e reservas. Os clientes se comunicam com esse servidor através de um protocolo textual utilizando sockets.
+O VaiJunto é um sistema cliente-servidor distribuído para gerenciamento de caronas compartilhadas. Originalmente um sistema centralizado, o VaiJunto evoluiu para um **consórcio de empresas independentes**. Cada empresa mantém seu próprio servidor, seus próprios usuários e caronas.
+
+Os clientes se conectam ao servidor de sua respectiva empresa via protocolo textual sobre TCP/IP. Os servidores, por sua vez, comunicam-se entre si através de uma **API REST**, permitindo que passageiros reservem itinerários compostos por trechos de empresas diferentes de forma transparente e atômica, utilizando o protocolo de *Two-Phase Commit* (2PC) simplificado.\
+\
+Você pode acessar o repositório original por este link: https://github.com/San-Tana/VAIJUNTO
 
 ## Estrutura do projeto
 
 A estrutura principal do projeto é:
 
-```text
+```
 VAIJUNTO/
 ├── Dockerfile
 ├── Makefile
 ├── README.md
+├── dados/ (gerado automaticamente para persistência)
+├── lib/
+│   └── gson-2.15.0.jar
 ├── vaijunto/
 │   └── src/
 │       ├── App/
@@ -21,528 +28,166 @@ VAIJUNTO/
 │       │   ├── cliente.java
 │       │   ├── corrida.java
 │       │   ├── corridaComposta.java
-│       │   ├── data.java
-│       │   ├── erros.java
-│       │   ├── motorista.java
-│       │   └── okays.java
+│       │   ├── identificadorGlobal.java
+│       │   └── ... (outras classes de modelo)
 │       │
-│       └── Server/
-│           ├── servicosServidor.java
-│           └── Servidor.java
+│       ├── Server/
+│       │   ├── Consorcio.java
+│       │   ├── PersistenciaJson.java
+│       │   ├── servicosServidor.java
+│       │   └── Servidor.java
+│       │
+│       └── Test/
+│           ├── TesteConcorrencia.java
+│           ├── TesteConcorrenciaComposta.java
+│           ├── TesteIntegracao.java
+│           └── TesteReservaComposta.java
 │
 └── out/
+
 ```
 
 De forma geral:
 
-- `App/`: contém a aplicação cliente e os serviços utilizados pelo cliente.
-- `Server/`: contém o servidor e as operações realizadas por ele.
-- `model/`: contém as classes que representam os dados do sistema.
-- `Dockerfile`: descreve como criar o ambiente do servidor.
-- `Makefile`: fornece comandos simplificados para construir e executar o servidor.
-- `out/`: contém os arquivos `.class` gerados pela compilação.
+* `App/`: aplicação interativa do cliente (passageiro/motorista).
 
----
+* `Server/`: servidor da empresa, API REST do consórcio, controle de transações e persistência.
+
+* `model/`: classes que representam os dados e lógica de negócio.
+
+* `Test/`: testes automatizados de integração, carga e concorrência remota.
+
+* `lib/`: dependências externas (Gson para serialização JSON).
+
+* `Dockerfile` & `Makefile`: orquestração do ambiente distribuído.
 
 ## Requisitos
 
-Para executar o projeto utilizando o ambiente preparado no repositório, é necessário possuir:
-  - Docker
-  - Make
-  - Java/JDK para executar o cliente
+* Docker
 
-Para verificar se estão disponíveis, acesse o terminal e digite os comandos:
-```bash
+* Make
+
+* Java/JDK (versão 17+) para compilar e executar clientes/testes.
+
+Para verificar se estão disponíveis, acesse o terminal e digite:
+
+```
 docker --version
 make --version
-java --version
-javac --version
+java -version
+
 ```
 
----
+## Arquitetura Docker e Makefile
 
-# Docker
+Para simular o consórcio de maneira realista, o sistema utiliza o Docker para rodar cada servidor de empresa em um ambiente isolado. O `Makefile` orquestra uma **Rede local,**  permitindo que as empresas se descubram e comuniquem por nome de host (ex: `localhost:8082`), enquanto mapeiam portas diferentes para a sua máquina local (`5000`, `5001`, `5002` para TCP).
 
-O Docker é utilizado para executar o servidor em um ambiente isolado. O arquivo `Dockerfile` descreve como esse ambiente deve ser construído. Durante a criação da imagem, o código do servidor e das classes utilizadas por ele é copiado para o container e compilado.
+### Compilando o Projeto
 
-De forma simplificada:
+Na raiz do projeto, execute:
 
-```text
-Código Java
-    ↓
-Dockerfile
-    ↓
-Imagem Docker
-    ↓
-Container
-    ↓
-Servidor VAIJUNTO
+```
+make build
+
 ```
 
-Isso permite que o servidor seja executado de maneira semelhante em diferentes computadores, desde que eles possuam Docker.
+*Isso compilará todas as classes Java incluindo a dependência do Gson e criará a imagem Docker do servidor.*
 
-## Imagem e container
+## Executando o Consórcio (Servidores)
 
-É importante diferenciar os dois conceitos.
+Você pode levantar as instâncias das três empresas (EMP_A, EMP_B, EMP_C) em terminais separados, podendo acompanhar os logs (como sincronização REST e *Gossip*) em tempo real. Abra três terminais distintos e execute um comando em cada:
 
-A **imagem** é o modelo utilizado para criar o ambiente do servidor.
+* Terminal 1: `make run-a`
 
-O **container** é uma instância em execução dessa imagem.
+* Terminal 2: `make run-b`
 
-Por exemplo:
+* Terminal 3: `make run-c`
 
-```text
-Dockerfile
-    ↓
-vaijunto-server (imagem)
-    ↓
-vaijunto-server (container)
-    ↓
-Servidor Java executando
+Para limpar a rede virtual:
+
 ```
-
-Quando o código do servidor é alterado, normalmente é necessário reconstruir a imagem para que o novo código seja incluído.
-
----
-
-# Makefile
-
-O `Makefile` serve para simplificar os comandos utilizados durante o desenvolvimento.
-
-Em vez de escrever manualmente vários comandos do Docker, podemos utilizar comandos como:
-
-```bash
-make run
-```
-
-ou:
-
-```bash
-make rebuild
-```
-
-O Make procura pelo arquivo `Makefile` na pasta atual e executa as instruções associadas ao comando informado.
-
-Por isso, os comandos devem ser executados na **raiz do projeto**, onde estão:
-
-```text
-Dockerfile
-Makefile
-README.md
-vaijunto/
-```
-
----
-
-# Executando o servidor
-
-## Primeira execução
-
-Na raiz do projeto:
-
-```bash
-make run
-```
-
-Esse comando constrói a imagem Docker e inicia o container do servidor.
-
-O servidor utiliza a porta:
-
-```text
-5000
-```
-
-O container deve permanecer executando enquanto os clientes estiverem utilizando o sistema.
-
----
-
-## Após alterar o servidor
-
-Caso alguma classe utilizada pelo servidor tenha sido modificada, a imagem Docker precisa ser reconstruída.
-
-Utilize:
-
-```bash
-make rebuild
-```
-
-Esse comando remove o container anterior, reconstrói a imagem com o código atualizado e inicia novamente o servidor.
-
----
-
-## Parar o servidor
-
-Para interromper o container:
-
-```bash
-make stop
-```
-
----
-
-## Remover o container
-
-Para remover o container criado anteriormente:
-
-```bash
 make clean
+
 ```
 
-Isso é útil, por exemplo, caso seja necessário criar novamente o container ou corrigir algum problema de execução.
+## Executando o Cliente Interativo
 
----
+O cliente deve se conectar a um dos servidores ativos do consórcio através do protocolo TCP.
+*Nota: É necessário incluir o Gson no classpath.*
 
-# Executando o cliente
+Execute a aplicação informando o `host` e a `porta TCP` do servidor desejado.
 
-O servidor deve estar executando antes de iniciar o cliente.
+Para conectar à **EMP_A**:
 
-Caso ainda não tenha compilado o cliente:
+```
+java -cp "out:lib/gson-2.15.0.jar" vaijunto.src.App.Aplicacao localhost 5000
 
-```bash
-javac -d out vaijunto/src/model/*.java vaijunto/src/App/*.java
 ```
 
-Depois:
+Para conectar à **EMP_B**:
 
-```bash
-java -cp out vaijunto.src.App.Aplicacao
+```
+java -cp "out:lib/gson-2.15.0.jar" vaijunto.src.App.Aplicacao localhost 5001
+
 ```
 
-O cliente atualmente se conecta ao servidor através da porta `5000`.
+(No Windows, substitua o separador `:` por `;` no `-cp`)*.*
 
-Durante testes locais, cliente e servidor podem estar na mesma máquina, utilizando:
+## Testes de Concorrência Distribuída
 
-```text
-localhost:5000
+Os testes automatizados simulam dezenas de passageiros tentando reservar as mesmas vagas (gargalos) simultaneamente a partir de empresas distintas. Eles provam a eficácia da exclusão mútua distribuída e do algoritmo de **Two-Phase Commit (2PC)** na prevenção de *overbooking* e falhas parciais.
+
+Com o consórcio em execução (`make start-all`), execute em um terminal separado:
+
+**Teste de Concorrência Simples (Uma Corrida Direta, 3 servidores disputando):**
+
+```
+java -cp "out:lib/gson-2.15.0.jar" vaijunto.src.Test.TesteConcorrencia
+
 ```
 
-Para testes distribuídos em computadores diferentes, o endereço utilizado pelo cliente deverá apontar para o computador no qual o servidor está sendo executado.
+**Teste de Concorrência Composta (Múltiplos Trechos, 2PC):**
 
----
+```
+java -cp "out:lib/gson-2.15.0.jar" vaijunto.src.Test.TesteConcorrenciaComposta
 
-# Desenvolvimento
-
-## Quando usar `make rebuild`?
-
-Uma regra prática:
-
-```text
-Alterou Server/ ou model/ e essa classe é usada pelo servidor?
-    → make rebuild
-
-Alterou somente App/?
-    → não é necessário reconstruir o container
-       basta recompilar/reexecutar o cliente
 ```
 
-Isso acontece porque o servidor é executado dentro do container, enquanto o cliente é executado separadamente.
+### Injeção de Falhas (Chaos Testing)
 
----
+Para testar a resiliência do consórcio a falhas, durante a execução de um teste ou através da aplicação cliente, você pode derrubar abruptamente um dos servidores em outro terminal e o sistema garantirá que nenhuma vaga em `EMP_A` ou `EMP_C` fique travada em estado `PREPARADA` pela metade, abortando transações em andamento de forma segura.
 
-# Comunicação cliente-servidor
+## Comunicação Cliente-Servidor (TCP)
 
-O VAIJUNTO utiliza um protocolo textual próprio sobre TCP. Uma requisição possui uma operação seguida pelo nome do usuário e os dados a serem utilizados, ou apenas os dados, caso a verificação de usuário não seja necessária. 
+O cliente e o servidor da empresa comunicam-se via Sockets. O protocolo segue a estrutura:
+`OPERACAO|usuario|dados`
 
-```text
-OPERACAO|usuario|dados
-```
+Novos comandos adicionados no Consórcio:
 
-Por exemplo, uma publicação de corrida pode seguir a estrutura:
+* `RESERVAR|usuario|ID_GLOBAL;origem;destino`: Solicita reserva direta global.
 
-```text
-PUBLICAR|usuario|origem;destino;data;assentos;preco
-```
+* `RESERVAR_COMPOSTA|usuario|ID_COMPOSTO`: Inicia transação distribuída (2PC).
 
-Os separadores possuem significados diferentes no protocolo:
+## Comunicação Servidor-Servidor (REST)
 
-```text
-|   separa os campos principais da mensagem
-;   separa campos internos
-&   separa informações agrupadas, como data ou paradas
-```
+Para garantir independência comercial e driblar firewalls, os servidores se comunicam através da porta HTTP interna usando JSON.
 
-Ao alterar uma mensagem, é necessário verificar **tanto o cliente quanto o servidor**.
+**Principais Endpoints (`Consorcio.java`):**
 
-Por exemplo, se o cliente envia:
+* `GET /api/status`: Identidade da empresa.
 
-```text
-BUSCAR|usuario|origem;destino
-```
+* `GET /api/index`: Fotografia (Snapshot) do índice de rotas.
 
-o servidor precisa interpretar exatamente essa estrutura. Alterar somente um dos lados pode fazer o servidor interpretar posições erradas do vetor gerado pelo `split()`.
+* `POST /api/atualizar`: Gatilho de sincronização (Gossip Protocol).
 
----
+* `GET /api/corridas`: Consulta o estado atual (Vagas, Preço).
 
-# Cuidados ao modificar o protocolo
+* `POST /api/reserva/preparar`: Fase 1 do 2PC (Bloqueio de recursos).
 
-Antes de alterar o formato de uma operação, verifique:
-  1. Onde a mensagem é criada no cliente.
-  2. Como ela é separada no servidor.
-  3. Qual método recebe cada campo.
-  4. Qual resposta o servidor envia.
-  5. Como o cliente interpreta essa resposta.
+* `POST /api/reserva/confirmar`: Fase 2 do 2PC (Confirmação).
 
-Por exemplo:
+* `POST /api/reserva/abortar`: Rollback da Fase 1 em caso de conflitos de rede ou concorrência.
 
-```java
-mensagem.split("\\|")
-```
+## Persistência de Dados
 
-separa os campos principais.
-
-Enquanto:
-
-```java
-dados.split("\\;")
-```
-
-separa os dados internos.
-
-E:
-
-```java
-dados.split("\\&")
-```
-
-é utilizado em estruturas menores, como datas, veículos e listas de paradas.
-
-Evite utilizar esses caracteres diretamente nos valores inseridos pelo usuário sem algum mecanismo de escape, pois eles fazem parte da estrutura do protocolo.
-
----
-
-# Quebras de linha nas mensagens
-
-O cliente utiliza `readLine()` para receber uma resposta do servidor. Por esse motivo, uma resposta enviada pelo servidor não deve possuir uma quebra de linha real (`\n`) no meio da mensagem, pois o cliente entenderia essa quebra como o final da resposta.
-
-Para representar uma quebra de linha dentro do protocolo, o servidor pode enviar:
-
-```java
-"\\n"
-```
-
-Em seguida, o cliente converte essa representação para uma quebra real antes de exibir:
-
-```java
-corrida.replace("\\n", "\n")
-```
-
-Assim:
-
-```text
-Servidor envia:
-
-  origem: Feira de Santana\ndestino: Salvador
-
-Cliente exibe:
-
-  origem: Feira de Santana
-  destino: Salvador
-```
-
----
-
-# Concorrência
-
-O servidor pode atender múltiplos clientes.
-
-Por isso, alterações nas estruturas compartilhadas devem ser feitas com cuidado, principalmente:
-
-```java
-registros
-corridas
-temp
-```
-
-As operações de reserva são especialmente importantes, pois dois clientes podem tentar reservar o último assento de uma corrida praticamente ao mesmo tempo.
-
-Uma operação como:
-
-```text
-verificar assento
-        ↓
-reservar assento
-```
-
-deve ser tratada como uma operação atômica: outro cliente não deve conseguir reservar o mesmo assento entre essas duas etapas.
-
-Corridas compostas exigem cuidado adicional, pois os dois trechos precisam ser confirmados juntos:
-
-```text
-CAR001 + CAR002
-
-ou reserva as duas
-ou não reserva nenhuma
-```
-
-Nunca deve existir uma reserva parcial de uma corrida composta. Por isso também, mesmo manipulando corridas normais, o sistema deve ter certeza que essa corrida também não faz parte de uma corrida composta feita para algum dos usuários.
-
----
-
-# Resultados temporários de busca
-
-As combinações de corridas encontradas durante uma busca são armazenadas temporariamente por usuário.
-
-A estrutura utilizada pelo servidor é semelhante a:
-
-```java
-Map<String, List<String>> temp;
-```
-
-Isso é importante porque diferentes clientes podem realizar buscas simultaneamente, uma estrutura global acabaria atrapalhando a busca de outros clientes, lotando a lista com corridas aleatórias ou até apagando elas caso um trecho do programa use `temp.clear()` para limpar as corridas encontradas por um dos clientes.
-
----
-
-# IDs de corridas
-
-O sistema utiliza identificadores para diferenciar os tipos de corrida.
-
-Exemplos:
-
-```text
-CAR001
-CAR002
-CAR003
-```
-
-para corridas normais, e:
-
-```text
-COM001
-COM002
-```
-
-para corridas compostas.
-
-Ao verificar o tipo de uma corrida, prefira:
-
-```java
-ID.startsWith("CAR")
-```
-
-ou:
-
-```java
-ID.startsWith("COM")
-```
-
-em vez de depender de posições específicas com `substring()`.
-
----
-
-# Testes recomendados
-
-Antes de considerar uma alteração concluída, teste pelo menos:
-
-- cadastro de usuário sem veículo;
-- cadastro de usuário com veículo;
-- login;
-- publicação de corrida sem paradas;
-- publicação de corrida com uma ou mais paradas;
-- busca de corrida direta;
-- busca utilizando paradas;
-- busca que gere corrida composta;
-- reserva de corrida normal;
-- reserva de corrida composta;
-- tentativa de reservar corrida cheia;
-- tentativa de reservar a própria corrida;
-- cancelamento;
-- histórico;
-- dois clientes tentando reservar simultaneamente o último assento.
-
-Para testar concorrência, abra mais de um terminal e execute múltiplos clientes enquanto mantém o mesmo servidor ativo.
-
----
-
-# Problemas comuns
-
-### Porta 5000 já está em uso
-
-Caso apareça uma mensagem semelhante a:
-
-```text
-address already in use
-```
-
-algum processo já está utilizando a porta `5000`.
-
-No Linux, é possível verificar com:
-
-```bash
-lsof -i :5000
-```
-
-Caso seja um servidor Java antigo que ficou aberto, encerre o processo antes de iniciar o container novamente.
-
-Também verifique containers existentes:
-
-```bash
-docker ps
-```
-
----
-
-### Container com o mesmo nome já existe
-
-Caso o Docker informe que já existe um container com o nome utilizado pelo projeto, simplesmente use:
-
-```bash
-make rebuild
-```
-
-Para parar o container caso esteja rodando e removê-lo, depois construir e executar o servidor novamente.
-
----
-
-### Alterei o servidor, mas nada mudou
-
-Provavelmente o container ainda está utilizando uma imagem criada com o código anterior.
-
-Execute:
-
-```bash
-make rebuild
-```
-
----
-
-### Alterei o cliente, mas nada mudou
-
-Recompile:
-
-```bash
-javac -d out vaijunto/src/model/*.java vaijunto/src/App/*.java
-```
-
-e execute novamente:
-
-```bash
-java -cp out vaijunto.src.App.Aplicacao
-```
-
----
-
-# Observações
-
-Durante o desenvolvimento, mantenha o protocolo cliente-servidor documentado e sincronizado entre os dois lados.
-
-Ao adicionar uma nova operação, uma boa sequência é:
-
-```text
-1. Definir a mensagem no protocolo
-        ↓
-2. Implementar a criação da requisição no cliente
-        ↓
-3. Adicionar a operação ao servidor
-        ↓
-4. Implementar o serviço correspondente
-        ↓
-5. Definir as respostas OK/ERRO
-        ↓
-6. Implementar a interpretação da resposta no cliente
-        ↓
-7. Testar com um cliente
-        ↓
-8. Testar com múltiplos clientes
-```
-
-Como o projeto envolve concorrência e comunicação por rede, uma funcionalidade funcionar com apenas um cliente não garante que ela esteja correta quando vários clientes estiverem conectados simultaneamente.
+A classe `PersistenciaJson.java` salva o estado do servidor periodicamente na pasta `dados/`. O salvamento utiliza um arquivo `.tmp` intermediário aliado ao `StandardCopyOption.ATOMIC_MOVE` para garantir que um crash de energia nunca corrompa o arquivo de banco de dados oficial da empresa, mantendo o estado das reservas seguro entre reinicializações.
