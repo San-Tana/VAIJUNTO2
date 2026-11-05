@@ -41,6 +41,21 @@ run-c:
 	-p $(PORT_C):$(PORT_C) \
 	-p $(PORT_REST_C):$(PORT_REST_C) \
 	$(IMAGE) EMP_C $(PORT_C) $(PORT_REST_C) $(PEERS_C)
+	
+stop-a:
+	docker stop servidor-a
 
+stop-b:
+	docker stop servidor-b
+
+stop-c:
+	docker stop servidor-c
+
+stop-all:
+	docker stop servidor-a servidor-b servidor-c
+
+remove-all: stop-all
+	docker rm servidor-a servidor-b servidor-c
+	
 clean:
 	rm -rf out
